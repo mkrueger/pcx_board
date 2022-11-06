@@ -180,41 +180,6 @@ use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement};
                 evaluate_exp(interpreter, l_value)
                     >= evaluate_exp(interpreter, r_value),
             ),
-        },
-        Expression::Dim1(variable, vec) => {
-            let var = &evaluate_exp(interpreter,&variable);
-            let index = get_int(&evaluate_exp(interpreter,&vec));
-
-            if let VariableValue::Dim1(_, data) = var {
-                return data[index as usize - 1].clone();
-            } else {
-                panic!("no array value {}", var);
-            }
-        }
-
-        Expression::Dim2(variable, vec, mat) => {
-            let var = &evaluate_exp(interpreter,&variable);
-            let index = get_int(&evaluate_exp(interpreter,&vec));
-            let index2 = get_int(&evaluate_exp(interpreter,&mat));
-
-            if let VariableValue::Dim2(_, data) = var {
-                return data[index as usize - 1][index2 as usize - 1].clone();
-            } else {
-                panic!("no array value {}", var);
-            }
-        }
-
-        Expression::Dim3(variable, vec, mat, cube) => {
-            let var = &evaluate_exp(interpreter,&variable);
-            let index = get_int(&evaluate_exp(interpreter,&vec));
-            let index2 = get_int(&evaluate_exp(interpreter,&mat));
-            let index3 = get_int(&evaluate_exp(interpreter,&cube));
-
-            if let VariableValue::Dim3(_, data) = var {
-                return data[index as usize - 1][index2 as usize - 1][index3  as usize - 1].clone();
-            } else {
-                panic!("no array value {}", var);
-            }
         }
     }
 }

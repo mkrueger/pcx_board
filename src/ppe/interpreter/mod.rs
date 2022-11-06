@@ -243,7 +243,6 @@ pub fn run(prg : &Program, ctx: &mut dyn ExecutionContext, io: &mut dyn PCBoardI
     interpreter.label_tables.push(calc_table(&prg.main_block));
     //nterpreter.lookup.insert(&prg.main_block, 0);
 
-    interpreter.ctx.print("Run program...\n");
     while interpreter.is_running && interpreter.cur_frame.last().unwrap().cur_ptr < prg.main_block.statements.len() {
         let stmt = &prg.main_block.statements[interpreter.cur_frame.last().unwrap().cur_ptr as usize];
         execute_statement(&mut interpreter, stmt);

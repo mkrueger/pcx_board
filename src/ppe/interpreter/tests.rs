@@ -32,12 +32,14 @@ mod tests {
         fn gotoxy(&mut self, _x: i32, _y: i32) {
             
         }
-
+        fn get_char(&mut self) -> Option<char> { todo!() }
 
         fn print(&mut self, str: &str)
         {
             self.output.push_str(str);
         }
+        fn send_to_com(&mut self, data: &str) { todo!() }
+
         fn read(&mut self) -> String
         {
             String::new()
