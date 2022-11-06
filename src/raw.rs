@@ -1,0 +1,98 @@
+#[allow(dead_code)]
+use std::{io::{ErrorKind, self, Read, Write}, time::Duration, net::{SocketAddr, TcpStream}, thread};
+
+pub struct RawCom
+{
+    pub tcp_stream: TcpStream,
+    pub buf: std::collections::VecDeque<u8>
+}
+
+impl RawCom 
+{
+    pub fn push_str(&mut self, data: &str)
+    {
+        self.buf.extend(data.as_bytes().iter());
+    }
+
+    pub fn connect(addr: &SocketAddr, timeout: Duration) -> io::Result<Self> {
+        let tcp_stream = std::net::TcpStream::connect_timeout(addr, timeout)?;
+        tcp_stream.set_nonblocking(true)?;
+
+        Ok(Self { 
+            tcp_stream,
+            buf: std::collections::VecDeque::new()
+        })
+    }
+
+    fn fill_buffer(&mut self) -> io::Result<()> {
+        let mut buf = [0;1024 * 8];
+        loop {
+            match self.tcp_stream.read(&mut buf) {
+                Ok(size) => {
+                    self.buf.extend(buf[0..size].iter());
+                    break;
+                }
+                Err(ref e) => {
+                    if e.kind() == io::ErrorKind::WouldBlock {
+                        break;
+                    }
+                    return Err(io::Error::new(ErrorKind::ConnectionAborted, format!("{}", e)));
+                }
+            };
+        }
+        Ok(())
+    }
+
+    fn fill_buffer_wait(&mut self, _timeout: Duration) -> io::Result<()> {
+        self.tcp_stream.set_nonblocking(false)?;
+        self.fill_buffer()?;
+        while self.buf.len() == 0 {
+            self.fill_buffer()?;
+            thread::sleep(Duration::from_millis(10));
+        }
+        self.tcp_stream.set_nonblocking(true)?;
+        Ok(())
+    }
+
+    fn get_name(&self) -> &'static str {
+        "Raw"
+    }
+
+    pub fn read_char(&mut self, timeout: Duration) -> io::Result<u8> {
+        if let Some(b) = self.buf.pop_front() {
+            return Ok(b);
+        }
+        self.fill_buffer_wait(timeout)?;
+        if let Some(b) = self.buf.pop_front() {
+            return Ok(b);
+        }
+        return Err(io::Error::new(ErrorKind::TimedOut, "timed out"));
+    }
+    
+    pub fn read_char_nonblocking(&mut self) -> io::Result<u8> {
+        if let Some(b) = self.buf.pop_front() {
+            return Ok(b);
+        }
+        return Err(io::Error::new(ErrorKind::TimedOut, "no data avaliable"));
+    }
+
+    pub fn read_exact(&mut self, duration: Duration, bytes: usize) -> io::Result<Vec<u8>> {
+        while self.buf.len() < bytes {
+            self.fill_buffer_wait(duration)?;
+        }
+        Ok(self.buf.drain(0..bytes).collect())
+    }
+    
+    pub fn is_data_available(&mut self) -> io::Result<bool> {
+        self.fill_buffer()?; 
+        Ok(self.buf.len() > 0)
+    }
+
+    pub fn disconnect(&mut self) -> io::Result<()> {
+        self.tcp_stream.shutdown(std::net::Shutdown::Both)
+    }
+
+    pub fn write(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.tcp_stream.write_all(&buf)
+    }
+}
