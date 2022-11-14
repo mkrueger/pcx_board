@@ -44,9 +44,9 @@ impl PCBoardParser  {
                         } else {
                             buf.extend_from_slice(b"0;");
                         }
-                        buf.extend_from_slice(FG_TABLE[caret.get_attribute().get_foreground_without_bold() as usize]);
+                        buf.extend_from_slice(FG_TABLE[caret.get_attribute().get_foreground() as usize]);
                         buf.extend_from_slice(b";");
-                        buf.extend_from_slice(BG_TABLE[caret.get_attribute().get_background_low() as usize]);
+                        buf.extend_from_slice(BG_TABLE[caret.get_attribute().get_background() as usize]);
                         buf.extend_from_slice(b"m");
                     }
                     _ => {}

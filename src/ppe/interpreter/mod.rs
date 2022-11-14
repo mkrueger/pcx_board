@@ -5,6 +5,7 @@ pub mod expressions;
 use ppl_engine::ast::*;
 use ppl_engine::tables::PPL_TRUE;
 
+use crate::Res;
 use crate::VT;
 
 pub use self::expressions::*;
@@ -21,13 +22,13 @@ pub trait ExecutionContext
 {
     fn vt(&mut self) -> &mut VT;
 
-    fn gotoxy(&mut self, x: i32, y: i32);
-    fn print(&mut self, str: &str);
-    fn read(&mut self) -> String;
-    fn get_char(&mut self) -> Option<char>;
+    fn gotoxy(&mut self, x: i32, y: i32) -> Res<()>;
+    fn print(&mut self, str: &str) -> Res<()>;
+    fn read(&mut self) -> Res<String>;
+    fn get_char(&mut self) -> Res<Option<char>>;
 
     /// simulate user input for later processing
-    fn send_to_com(&mut self, data: &str);
+    fn send_to_com(&mut self, data: &str) -> Res<()>;
 }
 
 pub struct StackFrame {
@@ -48,18 +49,18 @@ pub struct Interpreter<'a> {
 }
 
 
-pub fn create_array(interpreter: &mut Interpreter, var_type: VariableType, var_info: &VarInfo) -> VariableValue
+pub fn create_array(interpreter: &mut Interpreter, var_type: VariableType, var_info: &VarInfo) -> Res<VariableValue>
 {
     match var_info {
         VarInfo::Var0(_) => panic!(""),
         VarInfo::Var1(_, vec) => { 
-            let dim = get_int(&evaluate_exp(interpreter, vec));
+            let dim = get_int(&evaluate_exp(interpreter, vec)?);
             let mut v = Vec::new();
             v.resize(dim as usize, VariableValue::Integer(0));
-            VariableValue::Dim1(var_type, v)
+            Ok(VariableValue::Dim1(var_type, v))
         },
-        VarInfo::Var2(_, vec, mat) => VariableValue::Dim2(var_type, Vec::new()),
-        VarInfo::Var3(_, vec, mat, cub) => VariableValue::Dim3(var_type, Vec::new()),
+        VarInfo::Var2(_, vec, mat) => Ok(VariableValue::Dim2(var_type, Vec::new())),
+        VarInfo::Var3(_, vec, mat, cub) => Ok(VariableValue::Dim3(var_type, Vec::new())),
     }
 }
 
@@ -89,25 +90,25 @@ pub fn get_first_index(var_info: &VarInfo) -> &Expression
 }
 
 
-fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement)
+fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
 {
     // println!("execute {:?}", &stmt);
 
     match stmt {
         Statement::Let(variable, expr) => {
-            let value = evaluate_exp(interpreter, expr);
+            let value = evaluate_exp(interpreter, expr)?;
             let var_name = variable.get_name().clone();
             let var_type = interpreter.prg.get_var_type(&var_name);
             let var_info = interpreter.prg.get_var_info(&var_name).unwrap();
 
             if var_info.is_array() {
-                let dim1 = &evaluate_exp(interpreter, get_first_index(variable));
+                let dim1 = &evaluate_exp(interpreter, get_first_index(variable))?;
                 let val  = match interpreter.cur_frame.last_mut().unwrap().values.get_mut(&var_name) {
                     Some(val) => {
                         val
                     }
                     None => {
-                        let arr = create_array(interpreter, var_type, var_info);
+                        let arr = create_array(interpreter, var_type, var_info)?;
                         interpreter.cur_frame.last_mut().unwrap().values.insert(var_name.clone(), arr);
                         interpreter.cur_frame.last_mut().unwrap().values.get_mut(&var_name).unwrap()
                     }
@@ -139,7 +140,7 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement)
 
                     for i in 0..parameters.len() {
                         if let Declaration::Variable(var_type, infos) = &params[i] {
-                            let value = evaluate_exp(interpreter, &parameters[i]);
+                            let value = evaluate_exp(interpreter, &parameters[i])?;
                             prg_frame.values.insert(infos[0].get_name().clone(), convert_to(*var_type, &value));
                         } else  {
                             panic!("invalid parameter declaration {:?}", params[i]);
@@ -164,7 +165,7 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement)
         },
 
         Statement::If(cond, statement) => {
-            let value = evaluate_exp(interpreter, cond);
+            let value = evaluate_exp(interpreter, cond)?;
             if let VariableValue::Integer(x) = value {
                 if x == PPL_TRUE {
                     execute_statement(interpreter, statement);
@@ -180,12 +181,12 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement)
         }
 
         Statement::Inc(expr) => {
-            let new_value = evaluate_exp(interpreter, &Expression::Identifier(expr.clone())) + VariableValue::Integer(1);
+            let new_value = evaluate_exp(interpreter, &Expression::Identifier(expr.clone()))? + VariableValue::Integer(1);
             interpreter.cur_frame.last_mut().unwrap().values.insert(expr.to_string(), new_value);
         }
 
         Statement::Dec(expr) => {
-            let new_value = evaluate_exp(interpreter, &Expression::Identifier(expr.clone())) + VariableValue::Integer(-1);
+            let new_value = evaluate_exp(interpreter, &Expression::Identifier(expr.clone()))? + VariableValue::Integer(-1);
             interpreter.cur_frame.last_mut().unwrap().values.insert(expr.to_string(), new_value);
         }
 
@@ -206,6 +207,7 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement)
 
         _ => { panic!("unsupported statement {:?}", stmt); }
     }
+    Ok(())
 }
 
 fn calc_table(blk : &Block) -> HashMap<String, usize>

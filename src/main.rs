@@ -1,4 +1,4 @@
-use std::{net::{TcpListener, TcpStream}, collections::VecDeque, time::Duration};
+use std::{net::{TcpListener, TcpStream}, collections::VecDeque, time::Duration, thread};
 
 mod ppe;
 use icy_engine::BufferParser;
@@ -17,6 +17,8 @@ pub struct Connection
     pcb: PCBoardParser
 }
 
+pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
+
 impl Connection {
     pub fn new(stream: TcpStream) -> Self {
         stream.set_nonblocking(true).unwrap();
@@ -34,7 +36,7 @@ impl ExecutionContext for Connection
         &mut self.vt
     }
 
-    fn gotoxy(&mut self, x: i32, y: i32) {
+    fn gotoxy(&mut self, x: i32, y: i32) -> Res<()> {
         println!("gotoxy {}.{}", x,y);
         self.vt.caret.set_position_xy(x, y);
         let mut b = Vec::new();
@@ -44,21 +46,23 @@ impl ExecutionContext for Connection
         b.extend_from_slice((1 + x).to_string().as_bytes());
         b.extend_from_slice(b"H");
         self.com.write(&b);
+        Ok(())
     }
 
-    fn print(&mut self, str: &str)
-    {
+    fn print(&mut self, str: &str)-> Res<()> {
+    
         let mut v = Vec::new();
 
         for c in str.chars() {
-            self.vt.buffer_parser.print_char(&mut self.vt.buf, &mut self.vt.caret, c as u8);
+            self.vt.buffer_parser.print_char(&mut self.vt.buf, &mut self.vt.caret, c);
             self.pcb.print_char(&mut v, &mut self.vt.caret, c as u8);
         }
 
         self.com.write(&v);
+        Ok(())
     }
 
-    fn read(&mut self) -> String
+    fn read(&mut self) -> Res<String>
     {
         let mut result = String::new();
 
@@ -69,21 +73,21 @@ impl ExecutionContext for Connection
             }
             result.push(char::from_u32(ch as u32).unwrap());
         }
-        result
+        Ok(result)
     }
 
-    fn get_char(&mut self) -> Option<char>
+    fn get_char(&mut self) -> Res<Option<char>>
     {
         if self.com.is_data_available().unwrap() {
             let u = self.com.read_char_nonblocking().unwrap();
-            Some(char::from_u32(u as u32).unwrap()) 
+            Ok(Some(char::from_u32(u as u32).unwrap()))
         } else {
-            None
+            Ok(None)
         }
     }
-    fn send_to_com(&mut self, data: &str)
-    {
+    fn send_to_com(&mut self, data: &str)-> Res<()>  {
         self.com.push_str(data);
+        Ok(())
     }
 
 }
@@ -94,17 +98,19 @@ fn main() -> std::io::Result<()> {
     println!("listen...");
     for stream in listener.incoming() {
         println!("incoming connection!");
-
-        let mut connection = Connection::new(stream?);
-        
-        loop {
-            let prg = load_file(&"/home/mkrueger/work/pcx_board/AGSENTR1/AGSENTR.PPE");
-            let mut io = MemoryIO::new();
-            run(&prg, &mut connection, &mut io);
-            while connection.com.is_data_available().unwrap() {
-                connection.com.read_char_nonblocking();
+        let stream = stream?;
+        thread::spawn(move ||  {
+            let mut connection = Connection::new(stream);
+            
+            loop {
+                let prg = load_file(&"/home/mkrueger/work/pcx_board/AGSENTR1/AGSENTR.PPE");
+                let mut io = MemoryIO::new();
+                run(&prg, &mut connection, &mut io);
+                while connection.com.is_data_available().unwrap() {
+                    connection.com.read_char_nonblocking();
+                }
             }
-        }
+        });
     }
     Ok(())
 }

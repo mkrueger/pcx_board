@@ -11,3 +11,4 @@ icy_engine = { path = "../icy_engine" }
 substring = "1.4.5"
 regex = "1.5.5"
 rand = "0.8"
+tokio = { version = "1.21.2", features = ["full"] }

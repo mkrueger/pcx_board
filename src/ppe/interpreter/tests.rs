@@ -1,14 +1,11 @@
-use std::string::String;
-use crate::VT;
 
 #[cfg(test)]
 mod tests {
+    use crate::VT;
 
     use ppl_engine::parser::parse_program;
 
-    use crate::{ExecutionContext, run, MemoryIO, PCBoardIO};
-
-    use super::*;
+    use crate::{ExecutionContext, run, MemoryIO, PCBoardIO, Res};
 
     struct TestContext
     {
@@ -29,20 +26,25 @@ mod tests {
         fn vt(&mut self) -> &mut VT {
             &mut self.vt
         }
-        fn gotoxy(&mut self, _x: i32, _y: i32) {
-            
+        fn gotoxy(&mut self, _x: i32, _y: i32) -> Res<()> {
+            Ok(())
         }
-        fn get_char(&mut self) -> Option<char> { todo!() }
+        fn get_char(&mut self) -> Res<Option<char>> {
+            todo!() 
+        }
 
-        fn print(&mut self, str: &str)
+        fn print(&mut self, str: &str)-> Res<()>
         {
             self.output.push_str(str);
+            Ok(())
         }
-        fn send_to_com(&mut self, data: &str) { todo!() }
+        fn send_to_com(&mut self, data: &str) -> Res<()> {
+            todo!()
+        }
 
-        fn read(&mut self) -> String
+        fn read(&mut self) -> Res<String>
         {
-            String::new()
+            Ok(String::new())
         }
     }
 

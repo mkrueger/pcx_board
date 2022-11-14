@@ -1,7 +1,7 @@
 #![allow(clippy::needless_pass_by_value)]
 use ppl_engine::ast::{VariableValue, VariableType, convert_to};
 use substring::Substring;
-use crate::Interpreter;
+use crate::{Interpreter, Res};
 use rand::Rng; // 0.8.5
 use super::get_int;
 
@@ -353,11 +353,11 @@ pub fn yeschar(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
 
-pub fn inkey(interpreter: &mut Interpreter) -> VariableValue {
-    if let Some(ch) = interpreter.ctx.get_char() {
-        VariableValue::String(ch.to_string())
+pub fn inkey(interpreter: &mut Interpreter) -> Res<VariableValue> {
+    if let Some(ch) = interpreter.ctx.get_char()? {
+        Ok(VariableValue::String(ch.to_string()))
     } else {
-        VariableValue::String(String::new())
+        Ok(VariableValue::String(String::new()))
     }
 }
 

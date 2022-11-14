@@ -1,6 +1,8 @@
 use ppl_engine::ast::*;
 use ppl_engine::tables::*;
 use crate::Interpreter;
+use crate::InterpreterError;
+use crate::Res;
 use crate::evaluate_exp;
 
 /// .
@@ -19,7 +21,7 @@ pub fn call_predefined_procedure(
     interpreter: &mut Interpreter,
     def: &'static StatementDefinition,
     params: &Vec<Expression>,
-) {
+) -> Res<()> {
     match def.opcode {
         OpCode::CLS => predefined_procedures::cls(interpreter, params),
         OpCode::CLREOL => predefined_procedures::clreol(interpreter, params),
@@ -29,13 +31,13 @@ pub fn call_predefined_procedure(
         OpCode::GOTO => predefined_procedures::goto(interpreter, params),
         OpCode::PRINT => {
             for expr in params {
-                let value = evaluate_exp(interpreter, expr);
+                let value = evaluate_exp(interpreter, expr)?;
                 interpreter.ctx.print(&value.to_string());
             }
         }
         OpCode::PRINTLN => {
             for expr in params {
-                let value = evaluate_exp(interpreter, expr);
+                let value = evaluate_exp(interpreter, expr)?;
                 interpreter.ctx.print(&value.to_string());
             }
             interpreter.ctx.print("\n");
@@ -44,13 +46,13 @@ pub fn call_predefined_procedure(
         OpCode::CONFUNFLAG => predefined_procedures::confunflag(interpreter, params),
         OpCode::DISPFILE => predefined_procedures::dispfile(interpreter, params),
         OpCode::INPUT => predefined_procedures::input(interpreter, params),
-        OpCode::FCREATE => predefined_procedures::fcreate(interpreter, params),
-        OpCode::FOPEN => predefined_procedures::fopen(interpreter, params),
-        OpCode::FAPPEND => predefined_procedures::fappend(interpreter, params),
-        OpCode::FCLOSE => predefined_procedures::fclose(interpreter, params),
-        OpCode::FGET => predefined_procedures::fget(interpreter, params),
-        OpCode::FPUT => predefined_procedures::fput(interpreter, params),
-        OpCode::FPUTLN => predefined_procedures::fputln(interpreter, params),
+        OpCode::FCREATE => predefined_procedures::fcreate(interpreter, params)?,
+        OpCode::FOPEN => predefined_procedures::fopen(interpreter, params)?,
+        OpCode::FAPPEND => predefined_procedures::fappend(interpreter, params)?,
+        OpCode::FCLOSE => predefined_procedures::fclose(interpreter, params)?,
+        OpCode::FGET => predefined_procedures::fget(interpreter, params)?,
+        OpCode::FPUT => predefined_procedures::fput(interpreter, params)?,
+        OpCode::FPUTLN => predefined_procedures::fputln(interpreter, params)?,
         OpCode::RESETDISP => predefined_procedures::resetdisp(interpreter, params),
         OpCode::STARTDISP => predefined_procedures::startdisp(interpreter, params),
         OpCode::FPUTPAD => predefined_procedures::fputpad(interpreter, params),
@@ -74,7 +76,7 @@ pub fn call_predefined_procedure(
         OpCode::DTROFF => predefined_procedures::dtroff(interpreter, params),
         OpCode::CDCHKON => predefined_procedures::cdchkon(interpreter, params),
         OpCode::CDCHKOFF => predefined_procedures::cdchkoff(interpreter, params),
-        OpCode::DELAY => predefined_procedures::delay(interpreter, params),
+        OpCode::DELAY => predefined_procedures::delay(interpreter, params)?,
         OpCode::SENDMODEM => predefined_procedures::sendmodem(interpreter, params),
         OpCode::INC => predefined_procedures::inc(interpreter, params),
         OpCode::DEC => predefined_procedures::dec(interpreter, params),
@@ -89,7 +91,7 @@ pub fn call_predefined_procedure(
         OpCode::BEEP => predefined_procedures::beep(interpreter, params),
         OpCode::PUSH => predefined_procedures::push(interpreter, params),
         OpCode::POP => predefined_procedures::pop(interpreter, params),
-        OpCode::KBDSTUFF => predefined_procedures::kbdstuff(interpreter, params),
+        OpCode::KBDSTUFF => predefined_procedures::kbdstuff(interpreter, params)?,
         OpCode::CALL => predefined_procedures::call(interpreter, params),
         OpCode::JOIN => predefined_procedures::join(interpreter, params),
         OpCode::QUEST => predefined_procedures::quest(interpreter, params),
@@ -103,7 +105,7 @@ pub fn call_predefined_procedure(
         OpCode::KBDCHKON => predefined_procedures::kbdchkon(interpreter, params),
         OpCode::KBDCHKOFF => predefined_procedures::kbdchkoff(interpreter, params),
         OpCode::OPTEXT => predefined_procedures::optext(interpreter, params),
-        OpCode::DISPSTR => predefined_procedures::dispstr(interpreter, params),
+        OpCode::DISPSTR => predefined_procedures::dispstr(interpreter, params)?,
         OpCode::RDUNET => predefined_procedures::rdunet(interpreter, params),
         OpCode::WRUNET => predefined_procedures::wrunet(interpreter, params),
         OpCode::DOINTR => predefined_procedures::dointr(interpreter, params),
@@ -112,7 +114,7 @@ pub fn call_predefined_procedure(
         OpCode::POKEB => predefined_procedures::pokeb(interpreter, params),
         OpCode::POKEW => predefined_procedures::pokew(interpreter, params),
         OpCode::VARADDR => predefined_procedures::varaddr(interpreter, params),
-        OpCode::ANSIPOS => predefined_procedures::ansipos(interpreter, params),
+        OpCode::ANSIPOS => predefined_procedures::ansipos(interpreter, params)?,
         OpCode::BACKUP => predefined_procedures::backup(interpreter, params),
         OpCode::FORWARD => predefined_procedures::forward(interpreter, params),
         OpCode::FRESHLINE => predefined_procedures::freshline(interpreter, params),
@@ -255,9 +257,10 @@ pub fn call_predefined_procedure(
         OpCode::FDOQDEL => predefined_procedures::fdoqdel(interpreter, params),
         OpCode::SOUNDDELAY => predefined_procedures::sounddelay(interpreter, params),
         _ => {
-            panic!("unsupported op code {:?}", def.opcode);
+            return Err(Box::new(InterpreterError::UnsupportedOpCode(def.opcode)));
         }
     }
+    Ok(())
 }
 
 #[allow(unused_variables)]
