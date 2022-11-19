@@ -73,7 +73,7 @@ use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement, Res, I
 
                     while interpreter.cur_frame.last().unwrap().cur_ptr < f.block.statements.len() {
                         let stmt = &f.block.statements[interpreter.cur_frame.last().unwrap().cur_ptr as usize];
-                        execute_statement(interpreter, stmt);
+                        execute_statement(interpreter, stmt)?;
                         interpreter.cur_frame.last_mut().unwrap().cur_ptr += 1;
                     }
                     let prg_frame = interpreter.cur_frame.pop().unwrap();

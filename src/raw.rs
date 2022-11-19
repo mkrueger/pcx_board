@@ -54,10 +54,6 @@ impl RawCom
         Ok(())
     }
 
-    fn get_name(&self) -> &'static str {
-        "Raw"
-    }
-
     pub fn read_char(&mut self, timeout: Duration) -> io::Result<u8> {
         if let Some(b) = self.buf.pop_front() {
             return Ok(b);

@@ -38,7 +38,7 @@ mod tests {
             self.output.push_str(str);
             Ok(())
         }
-        fn send_to_com(&mut self, data: &str) -> Res<()> {
+        fn send_to_com(&mut self, _data: &str) -> Res<()> {
             todo!()
         }
 
@@ -222,7 +222,7 @@ PRINT B
 
     fn check_output_withio(prg: &str, io: &mut dyn PCBoardIO, out: &str) {
         let mut ctx = TestContext::new();
-        run(&parse_program(prg), &mut ctx, io);
+        run(&parse_program(prg), &mut ctx, io).unwrap();
         assert_eq!(out, ctx.output);
     }
 
@@ -231,11 +231,11 @@ PRINT B
         let mut ctx = TestContext::new();
         let mut io = MemoryIO::new();
 
-        run(&parse_program("PRINTLN 1, 2, 3, \"Hello World\""), &mut ctx, &mut io);
+        run(&parse_program("PRINTLN 1, 2, 3, \"Hello World\""), &mut ctx, &mut io).unwrap();
         assert_eq!("123Hello World\n".to_string(), ctx.output);
 
         ctx = TestContext::new();
-        run(&parse_program("PRINT TRUE, \",\", $41.43, \",\", 10h"), &mut ctx, &mut io);
+        run(&parse_program("PRINT TRUE, \",\", $41.43, \",\", 10h"), &mut ctx, &mut io).unwrap();
         assert_eq!("1,$41.43,16".to_string(), ctx.output);
     }
 
@@ -347,7 +347,7 @@ FCLOSE 1
 "#;
         let mut io = MemoryIO::new();
         let mut ctx = TestContext::new();
-        run(&parse_program(prg), &mut ctx, &mut io);
+        run(&parse_program(prg), &mut ctx, &mut io).unwrap();
         assert!(io.files.contains_key(r"C:\PCB\MAIN\PPE.LOG"));
         let content = io.files.get(r"C:\PCB\MAIN\PPE.LOG").unwrap();
         assert!(*content == "Hello World".to_string());
@@ -365,7 +365,7 @@ FCLOSE 1
                 "#;
         let mut io = MemoryIO::new();
         let mut ctx = TestContext::new();
-        run(&parse_program(prg), &mut ctx, &mut io);
+        run(&parse_program(prg), &mut ctx, &mut io).unwrap();
         assert!(io.files.contains_key(r"C:\PCB\MAIN\PPE.LOG"));
     }
 

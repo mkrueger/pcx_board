@@ -45,7 +45,7 @@ impl ExecutionContext for Connection
         b.extend_from_slice(b";");
         b.extend_from_slice((1 + x).to_string().as_bytes());
         b.extend_from_slice(b"H");
-        self.com.write(&b);
+        self.com.write(&b)?;
         Ok(())
     }
 
@@ -54,11 +54,11 @@ impl ExecutionContext for Connection
         let mut v = Vec::new();
 
         for c in str.chars() {
-            self.vt.buffer_parser.print_char(&mut self.vt.buf, &mut self.vt.caret, c);
+            self.vt.buffer_parser.print_char(&mut self.vt.buf, &mut self.vt.caret, c)?;
             self.pcb.print_char(&mut v, &mut self.vt.caret, c as u8);
         }
 
-        self.com.write(&v);
+        self.com.write(&v)?;
         Ok(())
     }
 
@@ -92,7 +92,7 @@ impl ExecutionContext for Connection
 
 }
 
-fn main() -> std::io::Result<()> {
+fn main() -> Res<()> {
 
     let listener = TcpListener::bind("127.0.0.1:4321")?;
     println!("listen...");
@@ -101,13 +101,21 @@ fn main() -> std::io::Result<()> {
         let stream = stream?;
         thread::spawn(move ||  {
             let mut connection = Connection::new(stream);
-            
             loop {
                 let prg = load_file(&"/home/mkrueger/work/pcx_board/AGSENTR1/AGSENTR.PPE");
                 let mut io = MemoryIO::new();
-                run(&prg, &mut connection, &mut io);
-                while connection.com.is_data_available().unwrap() {
-                    connection.com.read_char_nonblocking();
+                match run(&prg, &mut connection, &mut io) {
+                    Ok(_) => {
+                        while connection.com.is_data_available().unwrap() {
+                            if connection.com.read_char_nonblocking().is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("{}",e);
+                        break;
+                    }
                 }
             }
         });

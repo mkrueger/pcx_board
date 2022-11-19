@@ -59,8 +59,8 @@ pub fn create_array(interpreter: &mut Interpreter, var_type: VariableType, var_i
             v.resize(dim as usize, VariableValue::Integer(0));
             Ok(VariableValue::Dim1(var_type, v))
         },
-        VarInfo::Var2(_, vec, mat) => Ok(VariableValue::Dim2(var_type, Vec::new())),
-        VarInfo::Var3(_, vec, mat, cub) => Ok(VariableValue::Dim3(var_type, Vec::new())),
+        VarInfo::Var2(_, _, _) => Ok(VariableValue::Dim2(var_type, Vec::new())),
+        VarInfo::Var3(_, _, _, _) => Ok(VariableValue::Dim3(var_type, Vec::new())),
     }
 }
 
@@ -68,13 +68,13 @@ pub fn set_array_value(arr: &mut VariableValue, var_info: &VarInfo, val: Variabl
 {
     match var_info {
         VarInfo::Var0(_) => panic!(""),
-        VarInfo::Var1(_, v) => {
+        VarInfo::Var1(_, _) => {
             if let VariableValue::Dim1(_, data) = arr {
                 data[dim1] = val;
             }
         },
-        VarInfo::Var2(_, v, m) => todo!(),
-        VarInfo::Var3(_, v, m, c) => todo!(),
+        VarInfo::Var2(_, _, _) => todo!(),
+        VarInfo::Var3(_, _, _, _) => todo!(),
     }
 }
 
@@ -83,8 +83,8 @@ pub fn get_first_index(var_info: &VarInfo) -> &Expression
 {
     match var_info {
         VarInfo::Var1(_, v) => { v }
-        VarInfo::Var2(_, v, m) => { v }
-        VarInfo::Var3(_, v, m, c) => { v }
+        VarInfo::Var2(_, v, _) => { v }
+        VarInfo::Var3(_, v, _, _) => { v }
         _ => panic!(""),
     }
 }
@@ -125,7 +125,7 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
             interpreter.cur_frame.last_mut().unwrap().cur_ptr = *table.get(label).unwrap();
         }
         Statement::Call(def, params) => {
-            call_predefined_procedure(interpreter, def, params);
+            call_predefined_procedure(interpreter, def, params)?;
         }
         Statement::ProcedureCall(name, parameters) => {
             let mut found = false; 
@@ -151,7 +151,7 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
 
                     while interpreter.cur_frame.last().unwrap().cur_ptr < f.block.statements.len() {
                         let stmt = &f.block.statements[interpreter.cur_frame.last().unwrap().cur_ptr as usize];
-                        execute_statement(interpreter, stmt);
+                        execute_statement(interpreter, stmt)?;
                         interpreter.cur_frame.last_mut().unwrap().cur_ptr += 1;
                     }
                     interpreter.cur_frame.pop();
@@ -168,11 +168,11 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
             let value = evaluate_exp(interpreter, cond)?;
             if let VariableValue::Integer(x) = value {
                 if x == PPL_TRUE {
-                    execute_statement(interpreter, statement);
+                    execute_statement(interpreter, statement)?;
                 }
             } else if let VariableValue::Boolean(x) = value {
                 if x {
-                    execute_statement(interpreter, statement);
+                    execute_statement(interpreter, statement)?;
                 }
             } else {
                 panic!("no bool value {:?}", value);
@@ -223,7 +223,7 @@ fn calc_table(blk : &Block) -> HashMap<String, usize>
     res
 }
 
-pub fn run(prg : &Program, ctx: &mut dyn ExecutionContext, io: &mut dyn PCBoardIO)
+pub fn run(prg : &Program, ctx: &mut dyn ExecutionContext, io: &mut dyn PCBoardIO) -> Res<bool>
 {
     let cur_frame = StackFrame { 
         values: HashMap::new(),
@@ -247,7 +247,8 @@ pub fn run(prg : &Program, ctx: &mut dyn ExecutionContext, io: &mut dyn PCBoardI
 
     while interpreter.is_running && interpreter.cur_frame.last().unwrap().cur_ptr < prg.main_block.statements.len() {
         let stmt = &prg.main_block.statements[interpreter.cur_frame.last().unwrap().cur_ptr as usize];
-        execute_statement(&mut interpreter, stmt);
+        execute_statement(&mut interpreter, stmt)?;
         interpreter.cur_frame.last_mut().unwrap().cur_ptr += 1;
     }
+    Ok(true)
 }
