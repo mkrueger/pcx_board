@@ -1,4 +1,6 @@
 #![allow(clippy::needless_pass_by_value)]
+use std::ffi::OsStr;
+
 use ppl_engine::ast::{VariableValue, VariableType, convert_to};
 use substring::Substring;
 use crate::{Interpreter, Res};
@@ -264,6 +266,10 @@ pub fn trim(str: VariableValue, ch: VariableValue) -> VariableValue {
 
 pub fn random(upper: VariableValue) -> VariableValue {
     let upper = get_int(&upper);
+    if upper <= 0 {
+        return VariableValue::Integer(0)
+    }
+
     let mut rng = rand::thread_rng(); 
     VariableValue::Integer(rng.gen_range(0..upper))
 }
@@ -361,9 +367,10 @@ pub fn inkey(interpreter: &mut Interpreter) -> Res<VariableValue> {
     }
 }
 
-pub fn tostring(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn tostring(x: VariableValue) -> VariableValue {
+    VariableValue::String(x.to_string())
 }
+
 pub fn mask_pwd(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
@@ -391,9 +398,15 @@ pub fn curconf(_x: VariableValue) -> VariableValue {
 pub fn pcbdat(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn ppepath(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn ppepath(interpreter: &Interpreter) -> VariableValue {
+    let Some(dir) = interpreter.prg.file_name.parent() else {
+        return VariableValue::String(String::new());
+    };
+    let mut res = dir.to_string_lossy().to_string();
+    res.push('/');
+    VariableValue::String(res)
 }
+
 pub fn valdate(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
@@ -427,8 +440,14 @@ pub fn un_oper(_x: VariableValue) -> VariableValue {
 pub fn cursec(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn gettoken(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+
+pub fn gettoken(interpreter: &mut Interpreter) -> VariableValue {
+    if interpreter.cur_tokens.len() > 0 {
+        VariableValue::String(interpreter.cur_tokens.remove(0))
+    } else {
+        VariableValue::String(String::new())
+    }
+
 }
 pub fn minleft(_x: VariableValue) -> VariableValue {
     panic!("TODO")
@@ -612,15 +631,24 @@ pub fn abs(x: VariableValue) -> VariableValue {
 pub fn grafmode(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
+
 pub fn psa(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
+
 pub fn fileinf(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn ppename(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+
+pub fn ppename(interpreter: &Interpreter) -> VariableValue {
+    let p = interpreter.prg.file_name.with_extension("");
+    let Some(dir) = p.file_name() else {
+        return VariableValue::String(String::new());
+    };
+    let res = dir.to_string_lossy().to_string();
+    VariableValue::String(res)
 }
+
 pub fn mkdate(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }

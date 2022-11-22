@@ -365,7 +365,7 @@ fn call_function(
             predefined_functions::pcbdat(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::PPEPATH => {
-            predefined_functions::ppepath(evaluate_exp(interpreter, &params[0])?)
+            predefined_functions::ppepath(interpreter)
         }
         FuncOpCode::VALDATE => {
             predefined_functions::valdate(evaluate_exp(interpreter, &params[0])?)
@@ -401,7 +401,7 @@ fn call_function(
             predefined_functions::cursec(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::GETTOKEN => {
-            predefined_functions::gettoken(evaluate_exp(interpreter, &params[0])?)
+            predefined_functions::gettoken(interpreter)
         }
         FuncOpCode::MINLEFT => {
             predefined_functions::minleft(evaluate_exp(interpreter, &params[0])?)
@@ -548,7 +548,7 @@ fn call_function(
             predefined_functions::fileinf(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::PPENAME => {
-            predefined_functions::ppename(evaluate_exp(interpreter, &params[0])?)
+            predefined_functions::ppename(interpreter)
         }
         FuncOpCode::MKDATE => {
             predefined_functions::mkdate(evaluate_exp(interpreter, &params[0])?)

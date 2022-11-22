@@ -38,6 +38,11 @@ mod tests {
             self.output.push_str(str);
             Ok(())
         }
+        
+        fn write_raw(&mut self, data: Vec<u8>) -> Res<()> {
+            Ok(())
+        }
+    
         fn send_to_com(&mut self, _data: &str) -> Res<()> {
             todo!()
         }

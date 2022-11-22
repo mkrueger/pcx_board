@@ -62,6 +62,18 @@ impl ExecutionContext for Connection
         Ok(())
     }
 
+    fn write_raw(&mut self, data: Vec<u8>) -> Res<()> {
+        let mut v = Vec::new();
+
+        for c in data {
+            self.vt.buffer_parser.print_char(&mut self.vt.buf, &mut self.vt.caret, unsafe { char::from_u32_unchecked(c as u32)})?;
+            self.pcb.print_char(&mut v, &mut self.vt.caret, c);
+        }
+
+        self.com.write(&v)?;
+        Ok(())
+    }
+
     fn read(&mut self) -> Res<String>
     {
         let mut result = String::new();
@@ -102,6 +114,7 @@ fn main() -> Res<()> {
         thread::spawn(move ||  {
             let mut connection = Connection::new(stream);
             loop {
+                connection.print("test\x1B[1;47;36m\x1B[2J");
                 let prg = load_file(&"/home/mkrueger/work/pcx_board/AGSENTR1/AGSENTR.PPE");
                 let mut io = MemoryIO::new();
                 match run(&prg, &mut connection, &mut io) {

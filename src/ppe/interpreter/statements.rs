@@ -4,6 +4,8 @@ use crate::Interpreter;
 use crate::InterpreterError;
 use crate::Res;
 use crate::evaluate_exp;
+use crate::get_int;
+use crate::get_string;
 
 /// .
 ///
@@ -46,7 +48,12 @@ pub fn call_predefined_procedure(
         }
         OpCode::CONFFLAG => predefined_procedures::confflag(interpreter, params),
         OpCode::CONFUNFLAG => predefined_procedures::confunflag(interpreter, params),
-        OpCode::DISPFILE => predefined_procedures::dispfile(interpreter, params),
+        OpCode::DISPFILE => {
+            let file = get_string(&evaluate_exp(interpreter,&params[0])?);
+            let flags = get_int(&evaluate_exp(interpreter,&params[1])?);
+            predefined_procedures::dispfile(interpreter, file, flags)
+        }
+
         OpCode::INPUT => predefined_procedures::input(interpreter, params),
         OpCode::FCREATE => predefined_procedures::fcreate(interpreter, params),
         OpCode::FOPEN => predefined_procedures::fopen(interpreter, params),
@@ -84,7 +91,10 @@ pub fn call_predefined_procedure(
         OpCode::DEC => predefined_procedures::dec(interpreter, params),
         OpCode::NEWLINE => predefined_procedures::newline(interpreter, params),
         OpCode::NEWLINES => predefined_procedures::newlines(interpreter, params),
-        OpCode::TOKENIZE => predefined_procedures::tokenize(interpreter, params),
+        OpCode::TOKENIZE => {
+            let s = get_string(&evaluate_exp(interpreter,&params[0])?);
+            predefined_procedures::tokenize(interpreter, s)
+        },
         OpCode::GETTOKEN => predefined_procedures::gettoken(interpreter, params),
         OpCode::SHELL => predefined_procedures::shell(interpreter, params),
         OpCode::DISPTEXT => predefined_procedures::disptext(interpreter, params),

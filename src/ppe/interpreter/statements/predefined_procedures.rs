@@ -1,4 +1,4 @@
-use std::{time::Duration, thread};
+use std::{time::Duration, thread, fs};
 
 use ppl_engine::ast::*;
 use crate::{Interpreter, evaluate_exp, get_int, get_string, Res};
@@ -6,7 +6,7 @@ use crate::{Interpreter, evaluate_exp, get_int, get_string, Res};
 pub fn cls(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     interpreter.ctx.print("\x1B[2J")
 }
-
+ 
 pub fn clreol(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
@@ -28,9 +28,15 @@ pub fn confflag(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn confunflag(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn dispfile(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn dispfile(interpreter: &mut Interpreter, file: String, flags: i32) -> Res<()> {
+    let content = fs::read(&file);
+    match content {
+        Ok(content) => interpreter.ctx.write_raw(content),
+        Err(err) => interpreter.ctx.print(format!("{} error {}", file, err).as_str())
+    }
 }
+
 pub fn input(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
@@ -131,9 +137,12 @@ pub fn adjtime(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn log(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
+
 pub fn inputstr(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+    panic!("TODO inputstr")
 }
+
 pub fn inputyn(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
@@ -192,9 +201,13 @@ pub fn newline(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn newlines(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn tokenize(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn tokenize(interpreter: &mut Interpreter, str: String) -> Res<()> {
+    let split = str.split(&[' ', ';'][..]).map(|s| s.to_string());
+    interpreter.cur_tokens = split.collect();
+    Ok(())
 }
+
 pub fn gettoken(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }

@@ -24,6 +24,7 @@ pub trait ExecutionContext
 
     fn gotoxy(&mut self, x: i32, y: i32) -> Res<()>;
     fn print(&mut self, str: &str) -> Res<()>;
+    fn write_raw(&mut self, data: Vec<u8>) -> Res<()>;
     fn read(&mut self) -> Res<String>;
     fn get_char(&mut self) -> Res<Option<char>>;
 
@@ -44,7 +45,9 @@ pub struct Interpreter<'a> {
     label_tables: Vec<HashMap<String, usize>>,
     cur_frame: Vec<StackFrame>,
     io: &'a mut dyn PCBoardIO,
-    pub is_running: bool
+    pub is_running: bool,
+
+    pub cur_tokens: Vec<String>
    //  stack_frames: Vec<StackFrame>
 }
 
@@ -238,7 +241,8 @@ pub fn run(prg : &Program, ctx: &mut dyn ExecutionContext, io: &mut dyn PCBoardI
         label_tables: Vec::new(),
         cur_frame: vec![cur_frame],
         io,
-        is_running: true
+        is_running: true,
+        cur_tokens: Vec::new(),
         //  stack_frames: vec![]
     };
 
@@ -247,8 +251,36 @@ pub fn run(prg : &Program, ctx: &mut dyn ExecutionContext, io: &mut dyn PCBoardI
 
     while interpreter.is_running && interpreter.cur_frame.last().unwrap().cur_ptr < prg.main_block.statements.len() {
         let stmt = &prg.main_block.statements[interpreter.cur_frame.last().unwrap().cur_ptr as usize];
-        execute_statement(&mut interpreter, stmt)?;
+        match execute_statement(&mut interpreter, stmt) {
+            Ok(_) => {}
+            Err(err) => {
+                println!("error executing {:?} : {}", stmt, err);
+                break;
+            }
+        }
+
         interpreter.cur_frame.last_mut().unwrap().cur_ptr += 1;
     }
     Ok(true)
+}
+
+pub mod constants {
+    pub const AUTO: i32 = 0x2000;
+    pub const BELL: i32 = 0x0800;
+    pub const DEFS: i32 = 0x0000;
+    pub const ECHODOTS: i32 = 0x0001;
+    pub const ERASELINE: i32 = 0x0020;
+    pub const FIELDLEN: i32 = 0x0002;
+    pub const GUIDE: i32 = 0x0004;
+    pub const HIGHASCII: i32 = 0x1000;
+    pub const LFAFTER: i32 = 0x0100;
+    pub const LFBEFORE: i32 = 0x0080;
+    pub const LOGIT: i32 = 0x8000;
+    pub const LOGITLEFT: i32 = 0x10000;
+    pub const NEWLINE: i32 = 0x0040;
+    pub const NOCLEAR: i32 = 0x0400;
+    pub const STACKED: i32 = 0x0010;
+    pub const UPCASE: i32 = 0x0008;
+    pub const WORDWRAP: i32 = 0x0200;
+    pub const YESNO: i32 = 0x4000;
 }
