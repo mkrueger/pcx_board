@@ -562,14 +562,12 @@ pub fn cctype(_x: VariableValue) -> VariableValue {
 }
 
 pub fn getx(interpreter: &mut Interpreter) -> VariableValue {
-    println!("getx: {}", interpreter.ctx.vt().caret.get_position().x + 1);
     VariableValue::Integer(interpreter.ctx.vt().caret.get_position().x + 1)
 }
 
 pub fn gety(interpreter: &mut Interpreter) -> VariableValue {
     let vt = interpreter.ctx.vt();
     let y = vt.caret.get_position().y - vt.buf.get_first_visible_line();
-    println!("gety: {}", y + 1);
 
     VariableValue::Integer(y + 1)
 }

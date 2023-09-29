@@ -1,28 +1,25 @@
-
 #[cfg(test)]
 mod tests {
     use crate::VT;
 
     use ppl_engine::parser::parse_program;
 
-    use crate::{ExecutionContext, run, MemoryIO, PCBoardIO, Res};
+    use crate::{run, ExecutionContext, MemoryIO, PCBoardIO, Res};
 
-    struct TestContext
-    {
+    struct TestContext {
         output: String,
-        vt: VT
+        vt: VT,
     }
     impl TestContext {
         pub fn new() -> Self {
             Self {
                 output: String::new(),
-                vt: VT::new()
+                vt: VT::new(),
             }
         }
     }
 
-    impl ExecutionContext for TestContext
-    {
+    impl ExecutionContext for TestContext {
         fn vt(&mut self) -> &mut VT {
             &mut self.vt
         }
@@ -30,32 +27,31 @@ mod tests {
             Ok(())
         }
         fn get_char(&mut self) -> Res<Option<char>> {
-            todo!() 
+            todo!()
         }
 
-        fn print(&mut self, str: &str)-> Res<()>
-        {
+        fn print(&mut self, str: &str) -> Res<()> {
             self.output.push_str(str);
             Ok(())
         }
-        
-        fn write_raw(&mut self, data: Vec<u8>) -> Res<()> {
+
+        fn write_raw(&mut self, data: &[u8]) -> Res<()> {
             Ok(())
         }
-    
+
         fn send_to_com(&mut self, _data: &str) -> Res<()> {
             todo!()
         }
 
-        fn read(&mut self) -> Res<String>
-        {
+        fn read(&mut self) -> Res<String> {
             Ok(String::new())
         }
     }
 
     #[test]
-    fn test_bool() {        
-        check_output(r#"
+    fn test_bool() {
+        check_output(
+            r#"
 BOOLEAN B
 B = TRUE
 PRINT B, ","
@@ -63,22 +59,25 @@ B = !B
 PRINT B, ","
 B = !B
 PRINT B
-"#, "1,0,1"); // This is no error. Bools were printed as numbers
+"#,
+            "1,0,1",
+        ); // This is no error. Bools were printed as numbers
     }
-/* 
+    /*
+        #[test]
+        fn test_real() {
+            check_output(r#"
+    REAL v
+    v = 0.653
+    v = v + 10
+    PRINT v
+    "#, "10.653"); // This is no error. Bools were printed as numbers
+        }
+    */
     #[test]
-    fn test_real() {        
-        check_output(r#"
-REAL v
-v = 0.653
-v = v + 10
-PRINT v    
-"#, "10.653"); // This is no error. Bools were printed as numbers
-    }
-*/
-    #[test]
-    fn test_byte_overflow() {        
-        check_output(r#"
+    fn test_byte_overflow() {
+        check_output(
+            r#"
 BYTE B
 B = 255
 PRINT B, ","
@@ -86,12 +85,15 @@ INC B
 PRINT B, ","
 DEC B
 PRINT B
-"#, "255,0,255");
+"#,
+            "255,0,255",
+        );
     }
 
     #[test]
-    fn test_sbyte_overflow() {        
-        check_output(r#"
+    fn test_sbyte_overflow() {
+        check_output(
+            r#"
 SBYTE B
 B = 127
 PRINT B, ","
@@ -99,12 +101,15 @@ INC B
 PRINT B, ","
 DEC B
 PRINT B
-"#, "127,-128,127");
+"#,
+            "127,-128,127",
+        );
     }
-    
+
     #[test]
-    fn test_int_overflow() {        
-        check_output(r#"
+    fn test_int_overflow() {
+        check_output(
+            r#"
 INTEGER B
 B = 7FFFFFFFh
 PRINT B, ","
@@ -112,12 +117,15 @@ INC B
 PRINT B, ","
 DEC B
 PRINT B
-"#, "2147483647,-2147483648,2147483647");
+"#,
+            "2147483647,-2147483648,2147483647",
+        );
     }
 
     #[test]
-    fn test_unsigned_overflow() {        
-        check_output(r#"
+    fn test_unsigned_overflow() {
+        check_output(
+            r#"
 UNSIGNED B
 B = 4294967295
 PRINT B, ","
@@ -125,12 +133,15 @@ INC B
 PRINT B, ","
 DEC B
 PRINT B        
-"#, "4294967295,0,4294967295");
+"#,
+            "4294967295,0,4294967295",
+        );
     }
-    
+
     #[test]
-    fn test_word_overflow() {        
-        check_output(r#"
+    fn test_word_overflow() {
+        check_output(
+            r#"
 WORD B
 B = 65535
 PRINT B, ","
@@ -139,14 +150,15 @@ PRINT B, ","
 B = 0
 DEC B
 PRINT B   
-"#, "65535,0,65535");
+"#,
+            "65535,0,65535",
+        );
     }
 
-
     #[test]
-    fn test_sword_overflow() {      
-
-        check_output(r#"
+    fn test_sword_overflow() {
+        check_output(
+            r#"
 SWORD B
 B = 32767
 PRINT B, ","
@@ -154,11 +166,13 @@ INC B
 PRINT B, ","
 DEC B
 PRINT B
-"#, "32767,-32768,32767");
+"#,
+            "32767,-32768,32767",
+        );
     }
-    
+
     #[test]
-    fn test_constants() {        
+    fn test_constants() {
         check_output(r#"
         PRINT AUTO,","
         PRINT BELL,","
@@ -236,18 +250,28 @@ PRINT B
         let mut ctx = TestContext::new();
         let mut io = MemoryIO::new();
 
-        run(&parse_program("PRINTLN 1, 2, 3, \"Hello World\""), &mut ctx, &mut io).unwrap();
+        run(
+            &parse_program("PRINTLN 1, 2, 3, \"Hello World\""),
+            &mut ctx,
+            &mut io,
+        )
+        .unwrap();
         assert_eq!("123Hello World\n".to_string(), ctx.output);
 
         ctx = TestContext::new();
-        run(&parse_program("PRINT TRUE, \",\", $41.43, \",\", 10h"), &mut ctx, &mut io).unwrap();
+        run(
+            &parse_program("PRINT TRUE, \",\", $41.43, \",\", 10h"),
+            &mut ctx,
+            &mut io,
+        )
+        .unwrap();
         assert_eq!("1,$41.43,16".to_string(), ctx.output);
     }
 
     #[test]
-    fn test_func_len()
-    {
-        check_output(r#"
+    fn test_func_len() {
+        check_output(
+            r#"
         STRING STR001
         STRING STR002
         STR001 = "hello"
@@ -256,95 +280,108 @@ PRINT B
         STR001 = TRUE
         STR002 = ""
         PRINT LEN(STR001), ",", LEN(STR002)
-        "#, "5,4,1,0");
+        "#,
+            "5,4,1,0",
+        );
     }
 
     #[test]
-    fn test_func_lower()
-    {
+    fn test_func_lower() {
         check_output(r#"PRINT LOWER("HELLO")"#, "hello");
     }
 
     #[test]
-    fn test_func_upper()
-    {
+    fn test_func_upper() {
         check_output(r#"PRINT UPPER("hello")"#, "HELLO");
     }
 
     #[test]
-    fn test_func_mid()
-    {
-        check_output(r#"
+    fn test_func_mid() {
+        check_output(
+            r#"
 STRING STR001
 STR001 = "Hello World"
 PRINT MID(STR001, 1, 2), ",", MID(STR001, -1, 3), ",", MID(STR001, 4,1), ",", MID(STR001, 7, -3)
-"#, "He,  H,l,");
+"#,
+            "He,  H,l,",
+        );
     }
 
     #[test]
-    fn test_func_left()
-    {
-        check_output(r#"
+    fn test_func_left() {
+        check_output(
+            r#"
 STRING STR001
 STR001 = "Hello World"
 PRINT LEFT(STR001, 5), ",", LEFT("A", 5), ",", LEFT(STR001, -10), ",", LEFT(1, 2)
-"#, "Hello,A    ,,1 ");
+"#,
+            "Hello,A    ,,1 ",
+        );
     }
 
     #[test]
-    fn test_func_right()
-    {
-        check_output(r#"
+    fn test_func_right() {
+        check_output(
+            r#"
 STRING STR001
 STR001 = "Hello World"
 PRINT RIGHT(STR001, 5), ",", RIGHT("A", 5), ",", RIGHT(STR001, -10), ",", RIGHT(1, 2)
-"#, "World,    A,, 1");
+"#,
+            "World,    A,, 1",
+        );
     }
 
     #[test]
-    fn test_func_space()
-    {
-        check_output(r#"PRINT SPACE(5), ",", SPACE(0), ",", SPACE(-10), ",", SPACE(1)"#, "     ,,, ");
-    }
-    
-    #[test]
-    fn test_func_chr()
-    {
-        check_output(r#"PRINT CHR(65), ",", CHR(0), ",", CHR(-10), ",",CHR(16705),".""#, "A,,, .");
+    fn test_func_space() {
+        check_output(
+            r#"PRINT SPACE(5), ",", SPACE(0), ",", SPACE(-10), ",", SPACE(1)"#,
+            "     ,,, ",
+        );
     }
 
     #[test]
-    fn test_func_asc()
-    {
+    fn test_func_chr() {
+        check_output(
+            r#"PRINT CHR(65), ",", CHR(0), ",", CHR(-10), ",",CHR(16705),".""#,
+            "A,,, .",
+        );
+    }
+
+    #[test]
+    fn test_func_asc() {
         check_output(r#"PRINT ASC("A"), ",", ASC(""), ",", ASC(true)"#, "65,0,49");
     }
-    
+
     #[test]
-    fn test_func_instr()
-    {
-        check_output(r#"PRINT INSTR("ABCDEF", "CD"), ",", INSTR("ABCDEF", ""), ",", INSTR("", "ABC")"#, "3,0,0");
+    fn test_func_instr() {
+        check_output(
+            r#"PRINT INSTR("ABCDEF", "CD"), ",", INSTR("ABCDEF", ""), ",", INSTR("", "ABC")"#,
+            "3,0,0",
+        );
     }
 
     #[test]
-    fn test_func_ltrim()
-    {
-        check_output(r#"PRINT LTRIM("....FOO", "."), ",", LTRIM(".BAR", ""), ",""#, "FOO,.BAR,");
+    fn test_func_ltrim() {
+        check_output(
+            r#"PRINT LTRIM("....FOO", "."), ",", LTRIM(".BAR", ""), ",""#,
+            "FOO,.BAR,",
+        );
     }
 
-
     #[test]
-    fn test_func_ferr()
-    {
-        check_output(r#"
+    fn test_func_ferr() {
+        check_output(
+            r#"
         PRINT LTRIM("....FOO", "."), ",", LTRIM(".BAR", ""), ","
         
         
-        "#, "FOO,.BAR,");
+        "#,
+            "FOO,.BAR,",
+        );
     }
 
     #[test]
-    fn test_func_fput()
-    {
+    fn test_func_fput() {
         let prg = r#"
 FCREATE 1, "C:\PCB\MAIN\PPE.LOG", O_RW, S_DN
 FPUT 1, "Hello World"
@@ -359,8 +396,7 @@ FCLOSE 1
     }
 
     #[test]
-    fn test_func_fputln()
-    {
+    fn test_func_fputln() {
         let prg = r#"
         FCREATE 1, "C:\PCB\MAIN\PPE.LOG", O_RW, S_DN
         FPUTLN 1, 1, 2, 3
@@ -375,8 +411,7 @@ FCLOSE 1
     }
 
     #[test]
-    fn test_func_fopen_ferr_fget()
-    {
+    fn test_func_fopen_ferr_fget() {
         let prg = r#"
 INTEGER i
 STRING s
@@ -404,8 +439,9 @@ FCLOSE 1
     }
 
     #[test]
-    fn test_procedure() {        
-        check_output(r#"
+    fn test_procedure() {
+        check_output(
+            r#"
 DECLARE PROCEDURE Hello(STRING who)
 
 Hello("World")
@@ -413,12 +449,15 @@ Hello("World")
 PROCEDURE Hello(STRING who)
     PRINT "Hello ", who
 ENDPROC
-"#, "Hello World"); // This is no error. Bools were printed as numbers
+"#,
+            "Hello World",
+        ); // This is no error. Bools were printed as numbers
     }
-    
+
     #[test]
-    fn test_function() {        
-        check_output(r#"
+    fn test_function() {
+        check_output(
+            r#"
 DECLARE FUNCTION Hello(STRING who) STRING
 
 PRINT Hello("World")
@@ -426,17 +465,21 @@ PRINT Hello("World")
 FUNCTION Hello(STRING who) STRING
     Hello = "Hello " + who
 ENDFUNC
-"#, "Hello World"); // This is no error. Bools were printed as numbers
+"#,
+            "Hello World",
+        ); // This is no error. Bools were printed as numbers
     }
 
     #[test]
-    fn test_dim1() {        
-        check_output(r#"
+    fn test_dim1() {
+        check_output(
+            r#"
 INTEGER ARR(2)
 ARR(1) = 2
 ARR(2) = 3
 PRINT ARR(1) + ARR(2)
-"#, "5");
+"#,
+            "5",
+        );
     }
-
 }

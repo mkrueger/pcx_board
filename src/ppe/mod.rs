@@ -1,6 +1,7 @@
 use std::{fmt::{Display}, error::Error};
 
-use icy_engine::{Buffer, Caret, AvatarParser};
+use icy_engine::{Buffer, Caret, Position};
+use icy_engine::{ansi, ascii, atascii, avatar, petscii, viewdata, BufferParser};
 
 mod interpreter;
 pub use interpreter::*;
@@ -37,20 +38,19 @@ impl Error for InterpreterError {
 
 pub struct VT {
     pub buf: Buffer,
-    pub buffer_parser: AvatarParser,
+    pub buffer_parser: icy_engine::avatar::Parser,
     pub caret: Caret,
 }
 
 impl VT {
     pub fn new() -> Self {
-        let mut buf = Buffer::create(80, 25);
-        buf.layers[0].is_transparent = false;
+        let mut buf = Buffer::create((80, 25));
         buf.is_terminal_buffer = true;
         
         Self {
             buf,
-            buffer_parser: AvatarParser::new(true),
-            caret: Caret::new()
+            buffer_parser: avatar::Parser::default(),
+            caret: Caret::new(Position::new(0, 0))
         }
     }
 }

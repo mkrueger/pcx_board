@@ -1,16 +1,17 @@
-#[allow(dead_code)]
-use std::{io::{ErrorKind, self, Read, Write}, time::Duration, net::{SocketAddr, TcpStream}, thread};
+use std::{
+    io::{self, ErrorKind, Read, Write},
+    net::{SocketAddr, TcpStream},
+    thread,
+    time::Duration,
+};
 
-pub struct RawCom
-{
+pub struct RawCom {
     pub tcp_stream: TcpStream,
-    pub buf: std::collections::VecDeque<u8>
+    pub buf: std::collections::VecDeque<u8>,
 }
 
-impl RawCom 
-{
-    pub fn push_str(&mut self, data: &str)
-    {
+impl RawCom {
+    pub fn push_str(&mut self, data: &str) {
         self.buf.extend(data.as_bytes().iter());
     }
 
@@ -18,14 +19,14 @@ impl RawCom
         let tcp_stream = std::net::TcpStream::connect_timeout(addr, timeout)?;
         tcp_stream.set_nonblocking(true)?;
 
-        Ok(Self { 
+        Ok(Self {
             tcp_stream,
-            buf: std::collections::VecDeque::new()
+            buf: std::collections::VecDeque::new(),
         })
     }
 
     fn fill_buffer(&mut self) -> io::Result<()> {
-        let mut buf = [0;1024 * 8];
+        let mut buf = [0; 1024 * 8];
         loop {
             match self.tcp_stream.read(&mut buf) {
                 Ok(size) => {
@@ -36,7 +37,10 @@ impl RawCom
                     if e.kind() == io::ErrorKind::WouldBlock {
                         break;
                     }
-                    return Err(io::Error::new(ErrorKind::ConnectionAborted, format!("{}", e)));
+                    return Err(io::Error::new(
+                        ErrorKind::ConnectionAborted,
+                        format!("{}", e),
+                    ));
                 }
             };
         }
@@ -64,7 +68,7 @@ impl RawCom
         }
         return Err(io::Error::new(ErrorKind::TimedOut, "timed out"));
     }
-    
+
     pub fn read_char_nonblocking(&mut self) -> io::Result<u8> {
         if let Some(b) = self.buf.pop_front() {
             return Ok(b);
@@ -78,9 +82,9 @@ impl RawCom
         }
         Ok(self.buf.drain(0..bytes).collect())
     }
-    
+
     pub fn is_data_available(&mut self) -> io::Result<bool> {
-        self.fill_buffer()?; 
+        self.fill_buffer()?;
         Ok(self.buf.len() > 0)
     }
 

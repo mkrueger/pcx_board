@@ -1,4 +1,11 @@
-use std::{net::{TcpListener, TcpStream}, collections::VecDeque, time::Duration, thread};
+use std::{
+    collections::VecDeque,
+    fs::File,
+    io::Read,
+    net::{TcpListener, TcpStream},
+    thread,
+    time::{Duration, SystemTime},
+};
 
 mod ppe;
 use icy_engine::BufferParser;
@@ -8,13 +15,10 @@ pub use raw::*;
 mod pcb_parser;
 pub use pcb_parser::*;
 
-use ppl_engine::decompiler::load_file;
-
-pub struct Connection
-{
+pub struct Connection {
     com: RawCom,
     vt: VT,
-    pcb: PCBoardParser
+    pcb: PCBoardParser,
 }
 
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
@@ -24,20 +28,21 @@ impl Connection {
         stream.set_nonblocking(true).unwrap();
 
         Self {
-            com: RawCom { tcp_stream: stream, buf: VecDeque::new() },
+            com: RawCom {
+                tcp_stream: stream,
+                buf: VecDeque::new(),
+            },
             vt: VT::new(),
-            pcb: PCBoardParser::new()
+            pcb: PCBoardParser::new(),
         }
     }
 }
-impl ExecutionContext for Connection
-{
+impl ExecutionContext for Connection {
     fn vt(&mut self) -> &mut VT {
         &mut self.vt
     }
 
     fn gotoxy(&mut self, x: i32, y: i32) -> Res<()> {
-        println!("gotoxy {}.{}", x,y);
         self.vt.caret.set_position_xy(x, y);
         let mut b = Vec::new();
         b.extend_from_slice(b"\x1B[");
@@ -47,14 +52,15 @@ impl ExecutionContext for Connection
         b.extend_from_slice(b"H");
         self.com.write(&b)?;
         Ok(())
-    }
+    } 
 
-    fn print(&mut self, str: &str)-> Res<()> {
-    
+    fn print(&mut self, str: &str) -> Res<()> {
         let mut v = Vec::new();
 
         for c in str.chars() {
-            self.vt.buffer_parser.print_char(&mut self.vt.buf, &mut self.vt.caret, c)?;
+            self.vt
+                .buffer_parser
+                .print_char(&mut self.vt.buf, 0, &mut self.vt.caret, c);
             self.pcb.print_char(&mut v, &mut self.vt.caret, c as u8);
         }
 
@@ -62,20 +68,12 @@ impl ExecutionContext for Connection
         Ok(())
     }
 
-    fn write_raw(&mut self, data: Vec<u8>) -> Res<()> {
-        let mut v = Vec::new();
-
-        for c in data {
-            self.vt.buffer_parser.print_char(&mut self.vt.buf, &mut self.vt.caret, unsafe { char::from_u32_unchecked(c as u32)})?;
-            self.pcb.print_char(&mut v, &mut self.vt.caret, c);
-        }
-
-        self.com.write(&v)?;
+    fn write_raw(&mut self, data: &[u8]) -> Res<()> {
+        self.com.write(data)?;
         Ok(())
     }
 
-    fn read(&mut self) -> Res<String>
-    {
+    fn read(&mut self) -> Res<String> {
         let mut result = String::new();
 
         loop {
@@ -88,8 +86,7 @@ impl ExecutionContext for Connection
         Ok(result)
     }
 
-    fn get_char(&mut self) -> Res<Option<char>>
-    {
+    fn get_char(&mut self) -> Res<Option<char>> {
         if self.com.is_data_available().unwrap() {
             let u = self.com.read_char_nonblocking().unwrap();
             Ok(Some(char::from_u32(u as u32).unwrap()))
@@ -97,30 +94,92 @@ impl ExecutionContext for Connection
             Ok(None)
         }
     }
-    fn send_to_com(&mut self, data: &str)-> Res<()>  {
+    fn send_to_com(&mut self, data: &str) -> Res<()> {
         self.com.push_str(data);
         Ok(())
     }
-
 }
 
 fn main() -> Res<()> {
-
     let listener = TcpListener::bind("127.0.0.1:4321")?;
     println!("listen...");
+
+    let names = [
+        "dragon.ans",
+        "test.ans",
+        "TG-HARL.ANS",
+        "xibalba.ans",
+        "20beersmenu1.ans",
+        "cards.ans",
+        "sixel.ans",
+        "resize_terminal.ans",
+        "size_back.ans",
+        "music.ans",
+    ];
+
+    let mut files = Vec::new();
+    for name in names {
+        let mut fs = File::open(format!("./manual_tests/{}", name)).unwrap();
+        let mut data = Vec::new();
+        fs.read_to_end(&mut data).unwrap();
+        files.push(data);
+    }
+
     for stream in listener.incoming() {
         println!("incoming connection!");
         let stream = stream?;
-        thread::spawn(move ||  {
+        let files_copy = files.clone();
+        thread::spawn(move || {
+            let mut i = 1;
             let mut connection = Connection::new(stream);
+            // connection.write_raw(b"\x1BP0pS(E)(C1)P[100,440]V(B),[+100,+0],[+0,-10],[-100,+0],(E)P[500,300],F(C[+100])\x1B\\".to_vec());
+            //connection.write_raw(&files_copy[0]).unwrap();
+
+            connection.write_raw(b"Press enter").unwrap();
+
+            let mut st = SystemTime::now();
+
             loop {
-                connection.print("test\x1B[1;47;36m\x1B[2J");
-                let prg = load_file(&"/home/mkrueger/work/pcx_board/AGSENTR1/AGSENTR.PPE");
+                if st.elapsed().unwrap() > Duration::from_secs(30) {
+                    break;
+                }
+                // let prg = load_file(&"/home/mkrueger/work/pcx_board/AGSENTR1/AGSENTR.PPE");
+                let mut got = false;
+                while connection.com.is_data_available().unwrap() {
+                    let ch = connection.com.read_char_nonblocking();
+                    if let Ok(ch) = ch {
+                        connection.write_raw(&vec![ch]).unwrap();
+                        st = SystemTime::now();
+                        got = true;
+                        if ch == b'\r' {
+                            connection.write_raw(&files_copy[i]).unwrap();
+                            i = (i + 1) % files_copy.len();
+                        }
+                        if ch == b'\x1B' {
+                            print!("\\x1B");
+                        } else {
+                            print!("{} ({}/0x{:02X}),", char::from_u32(ch as u32).unwrap(), ch as u32, ch as u32);
+                        }
+                    } 
+                    if ch.is_err() {
+                        break;
+                    }
+                }
+                if got {
+                    println!();
+                }
+                thread::sleep(Duration::from_millis(20));
+
+                /*
                 let mut io = MemoryIO::new();
                 match run(&prg, &mut connection, &mut io) {
                     Ok(_) => {
                         while connection.com.is_data_available().unwrap() {
-                            if connection.com.read_char_nonblocking().is_err() {
+                            let ch = connection.com.read_char_nonblocking();
+                            if let Ok(ch) = ch {
+                                println!("{}", char::from_u32(ch as u32).unwrap());
+                            }
+                            if ch.is_err() {
                                 break;
                             }
                         }
@@ -129,7 +188,7 @@ fn main() -> Res<()> {
                         eprintln!("{}",e);
                         break;
                     }
-                }
+                } */
             }
         });
     }

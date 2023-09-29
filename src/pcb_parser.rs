@@ -37,7 +37,7 @@ impl PCBoardParser  {
                     }
                     2 => {
                         self.pcb_value = (self.pcb_value << 4) + conv_ch(ch);
-                        caret.set_attr(TextAttribute::from_u8(self.pcb_value, icy_engine::BufferType::LegacyIce));
+                        caret.set_attr(TextAttribute::from_u8(self.pcb_value, icy_engine::IceMode::Ice));
                         buf.extend_from_slice(b"\x1B[");
                         if caret.get_attribute().is_bold() {
                             buf.extend_from_slice(b"1;");
@@ -80,7 +80,7 @@ impl PCBoardParser  {
 }
 
 fn conv_ch(ch: u8) -> u8 {
-    if (b'0'..=b'9').contains(&ch) {
+    if ch.is_ascii_digit() {
         return ch - b'0';
     }
     if (b'a'..=b'f').contains(&ch) {

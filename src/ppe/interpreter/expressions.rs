@@ -40,7 +40,7 @@ use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement, Res, I
                         return Ok(val.1.clone());
                     }
                 }
-                return Err(Box::new(InterpreterError::UnsupportedConst(x)));
+                 Err(Box::new(InterpreterError::UnsupportedConst(x)))
             }
         },
         Expression::Parens(expr) |

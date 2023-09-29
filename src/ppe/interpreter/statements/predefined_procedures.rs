@@ -1,12 +1,12 @@
-use std::{time::Duration, thread, fs};
+use std::{fs, thread, time::Duration};
 
+use crate::{evaluate_exp, get_int, get_string, Interpreter, Res};
 use ppl_engine::ast::*;
-use crate::{Interpreter, evaluate_exp, get_int, get_string, Res};
 
 pub fn cls(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     interpreter.ctx.print("\x1B[2J")
 }
- 
+
 pub fn clreol(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
@@ -32,58 +32,65 @@ pub fn confunflag(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn dispfile(interpreter: &mut Interpreter, file: String, flags: i32) -> Res<()> {
     let content = fs::read(&file);
     match content {
-        Ok(content) => interpreter.ctx.write_raw(content),
-        Err(err) => interpreter.ctx.print(format!("{} error {}", file, err).as_str())
+        Ok(content) => interpreter.ctx.write_raw(&content),
+        Err(err) => interpreter
+            .ctx
+            .print(format!("{} error {}", file, err).as_str()),
     }
 }
 
 pub fn input(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn fcreate(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()>  {
-    let channel = get_int(&evaluate_exp(interpreter,&params[0])?) as usize;
-    let file = &evaluate_exp(interpreter,&params[1])?.to_string();
-    let am = get_int(&evaluate_exp(interpreter,&params[2])?);
-    let sm = get_int(&evaluate_exp(interpreter,&params[3])?);
+pub fn fcreate(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
+    let file = &evaluate_exp(interpreter, &params[1])?.to_string();
+    let am = get_int(&evaluate_exp(interpreter, &params[2])?);
+    let sm = get_int(&evaluate_exp(interpreter, &params[3])?);
     interpreter.io.fcreate(channel, file, am, sm);
     Ok(())
 }
 
-pub fn fopen(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()>  {
-    let channel = get_int(&evaluate_exp(interpreter,&params[0])?) as usize;
-    let file = &evaluate_exp(interpreter,&params[1])?.to_string();
-    let am = get_int(&evaluate_exp(interpreter,&params[2])?);
-    let sm = get_int(&evaluate_exp(interpreter,&params[3])?);
+pub fn fopen(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
+    let file = &evaluate_exp(interpreter, &params[1])?.to_string();
+    let am = get_int(&evaluate_exp(interpreter, &params[2])?);
+    let sm = get_int(&evaluate_exp(interpreter, &params[3])?);
     interpreter.io.fopen(channel, file, am, sm);
     Ok(())
 }
 
-pub fn fappend(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()>  {
-    let channel = get_int(&evaluate_exp(interpreter,&params[0])?) as usize;
-    let file = &evaluate_exp(interpreter,&params[1])?.to_string();
-    let am = get_int(&evaluate_exp(interpreter,&params[2])?);
-    let sm = get_int(&evaluate_exp(interpreter,&params[3])?);
+pub fn fappend(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
+    let file = &evaluate_exp(interpreter, &params[1])?.to_string();
+    let am = get_int(&evaluate_exp(interpreter, &params[2])?);
+    let sm = get_int(&evaluate_exp(interpreter, &params[3])?);
     interpreter.io.fappend(channel, file, am, sm);
     Ok(())
 }
 
-pub fn fclose(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()>  {
-    let channel = get_int(&evaluate_exp(interpreter,&params[0])?) as usize;
+pub fn fclose(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
     interpreter.io.fclose(channel);
     Ok(())
 }
 
-pub fn fget(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()>  {
-    let channel = get_int(&evaluate_exp(interpreter,&params[0])?) as usize;
+pub fn fget(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
     let value = VariableValue::String(interpreter.io.fget(channel));
     let var_name = get_var_name(&params[1]);
     let var_type = interpreter.prg.get_var_type(&var_name);
-    interpreter.cur_frame.last_mut().unwrap().values.insert(var_name, convert_to(var_type, &value));
+    interpreter
+        .cur_frame
+        .last_mut()
+        .unwrap()
+        .values
+        .insert(var_name, convert_to(var_type, &value));
     Ok(())
 }
 
-pub fn fput(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()>  {
-    let channel = get_int(&evaluate_exp(interpreter,&params[0])?) as usize;
+pub fn fput(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
 
     for expr in &params[1..] {
         let value = evaluate_exp(interpreter, expr)?;
@@ -92,9 +99,8 @@ pub fn fput(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()>  {
     Ok(())
 }
 
-
-pub fn fputln(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()>  {
-    let channel = get_int(&evaluate_exp(interpreter,&params[0])?) as usize;
+pub fn fputln(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
 
     for expr in &params[1..] {
         let value = evaluate_exp(interpreter, expr)?;
@@ -139,7 +145,6 @@ pub fn log(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 }
 
 pub fn inputstr(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-
     panic!("TODO inputstr")
 }
 
@@ -177,9 +182,9 @@ pub fn cdchkoff(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
 
-pub fn delay(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()>  {
+pub fn delay(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     // 1 tick is ~1/18.2s
-    let ticks = get_int(&evaluate_exp(interpreter,&params[0])?);
+    let ticks = get_int(&evaluate_exp(interpreter, &params[0])?);
     if ticks > 0 {
         thread::sleep(Duration::from_millis((ticks as f32 * 1000.0 / 18.2) as u64));
     }
@@ -276,7 +281,6 @@ pub fn optext(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
 pub fn dispstr(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-
     let value = evaluate_exp(interpreter, &params[0])?;
     interpreter.ctx.print(&get_string(&value))
 }
@@ -306,8 +310,8 @@ pub fn varaddr(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 }
 
 pub fn ansipos(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-    let x = get_int(&evaluate_exp(interpreter,&params[0])?) - 1;
-    let y = get_int(&evaluate_exp(interpreter,&params[1])?) - 1;
+    let x = get_int(&evaluate_exp(interpreter, &params[0])?) - 1;
+    let y = get_int(&evaluate_exp(interpreter, &params[1])?) - 1;
 
     interpreter.ctx.gotoxy(x, y)
 }
