@@ -1,7 +1,7 @@
-use std::{fmt::{Display}, error::Error};
+use std::{error::Error, fmt::Display};
 
-use icy_engine::{Buffer, Caret, Position};
 use icy_engine::{ansi, ascii, atascii, avatar, petscii, viewdata, BufferParser};
+use icy_engine::{Buffer, Caret, Position};
 
 mod interpreter;
 pub use interpreter::*;
@@ -46,11 +46,11 @@ impl VT {
     pub fn new() -> Self {
         let mut buf = Buffer::create((80, 25));
         buf.is_terminal_buffer = true;
-        
+
         Self {
             buf,
             buffer_parser: avatar::Parser::default(),
-            caret: Caret::new(Position::new(0, 0))
+            caret: Caret::new(Position::new(0, 0)),
         }
     }
 }

@@ -1,11 +1,14 @@
 #![allow(clippy::needless_pass_by_value)]
 use std::ffi::OsStr;
+use std::fs::File;
 
-use ppl_engine::ast::{VariableValue, VariableType, convert_to};
-use substring::Substring;
-use crate::{Interpreter, Res};
-use rand::Rng; // 0.8.5
+use super::super::errors::Error;
 use super::get_int;
+use crate::{Interpreter, Res};
+use easy_reader::EasyReader;
+use ppl_engine::ast::{convert_to, VariableType, VariableValue};
+use rand::Rng; // 0.8.5
+use substring::Substring;
 
 /// Returns the length of a strning
 /// # Arguments
@@ -267,10 +270,10 @@ pub fn trim(str: VariableValue, ch: VariableValue) -> VariableValue {
 pub fn random(upper: VariableValue) -> VariableValue {
     let upper = get_int(&upper);
     if upper <= 0 {
-        return VariableValue::Integer(0)
+        return VariableValue::Integer(0);
     }
 
-    let mut rng = rand::thread_rng(); 
+    let mut rng = rand::thread_rng();
     VariableValue::Integer(rng.gen_range(0..upper))
 }
 
@@ -413,12 +416,32 @@ pub fn valdate(_x: VariableValue) -> VariableValue {
 pub fn valtime(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn pcbnode(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn pcbnode(interpreter: &Interpreter) -> VariableValue {
+    VariableValue::Integer(interpreter.pcb_data.node_number)
 }
-pub fn readline(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+
+pub fn readline(
+    interpreter: &Interpreter,
+    file: VariableValue,
+    line: VariableValue,
+) -> Res<VariableValue> {
+    let VariableValue::String(file_name) = file else {
+        return Err(Box::new(Error::ParameterStringExpected(0)));
+    };
+    let VariableValue::Integer(line) = line else {
+        return Err(Box::new(Error::ParameterIntegerExpected(1)));
+    };
+
+    let file = File::open(file_name)?;
+    let mut reader = EasyReader::new(file)?;
+    for _ in 1..line {
+        reader.next_line()?;
+    }
+    Ok(VariableValue::String(
+        reader.next_line()?.unwrap_or_default(),
+    ))
 }
+
 pub fn sysopsec(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
@@ -447,7 +470,6 @@ pub fn gettoken(interpreter: &mut Interpreter) -> VariableValue {
     } else {
         VariableValue::String(String::new())
     }
-
 }
 pub fn minleft(_x: VariableValue) -> VariableValue {
     panic!("TODO")
@@ -600,29 +622,25 @@ pub fn defcolor(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
 pub fn abs(x: VariableValue) -> VariableValue {
-    match x { 
-        VariableValue::Boolean(_) |
-        VariableValue::Integer(_) |   
-        VariableValue::Date(_) |
-        VariableValue::Money(_) | 
-        VariableValue::EDate(_) |
-        VariableValue::Time(_) => {
-            VariableValue::Integer(get_int(&x).abs())
-        }
-        VariableValue::Word(_) |
-        VariableValue::Unsigned(_) |
-        VariableValue::Byte(_) => x,
+    match x {
+        VariableValue::Boolean(_)
+        | VariableValue::Integer(_)
+        | VariableValue::Date(_)
+        | VariableValue::Money(_)
+        | VariableValue::EDate(_)
+        | VariableValue::Time(_) => VariableValue::Integer(get_int(&x).abs()),
+        VariableValue::Word(_) | VariableValue::Unsigned(_) | VariableValue::Byte(_) => x,
 
         VariableValue::SByte(i) => VariableValue::SByte(i.abs()),
         VariableValue::SWord(i) => VariableValue::SWord(i.abs()),
-    
+
         VariableValue::Real(r) => VariableValue::Real(r.abs()),
-        
+
         VariableValue::String(_) => abs(convert_to(VariableType::Integer, &x)),
 
-        VariableValue::Dim1(_, _) |
-        VariableValue::Dim2(_, _) |
-        VariableValue::Dim3(_, _) => panic!("not supported abs!!!")
+        VariableValue::Dim1(_, _) | VariableValue::Dim2(_, _) | VariableValue::Dim3(_, _) => {
+            panic!("not supported abs!!!")
+        }
     }
 }
 

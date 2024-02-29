@@ -1,5 +1,6 @@
 use std::{fs, thread, time::Duration};
 
+use super::super::errors::Error;
 use crate::{evaluate_exp, get_int, get_string, Interpreter, Res};
 use ppl_engine::ast::*;
 
@@ -70,8 +71,15 @@ pub fn fappend(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> 
 }
 
 pub fn fclose(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
-    interpreter.io.fclose(channel);
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?);
+    if channel == -1 {
+        // READLINE uses -1 as a special value
+        return Ok(());
+    }
+    if !(0..=7).contains(&channel) {
+        return Err(Box::new(Error::FileChannelOutOfBounds(channel)));
+    }
+    interpreter.io.fclose(channel as usize);
     Ok(())
 }
 

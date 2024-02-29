@@ -9,6 +9,8 @@ edition = "2021"
 ppl_engine = { path = "../PPLEngine" }
 icy_engine = { path = "../icy_engine" }
 substring = "1.4.5"
-regex = "1.5.5"
+regex = "1.10.3"
 rand = "0.8"
-tokio = { version = "1.21.2", features = ["full"] }
+easy_reader = "0.5.2"
+thiserror = "1.0"
+tokio = { version = "1.36.0", features = ["full"] }

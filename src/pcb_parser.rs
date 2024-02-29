@@ -1,5 +1,4 @@
-use icy_engine::{TextAttribute, Caret};
-
+use icy_engine::{Caret, TextAttribute};
 
 #[allow(clippy::struct_excessive_bools)]
 pub struct PCBoardParser {
@@ -21,11 +20,10 @@ impl PCBoardParser {
     }
 }
 
-const FG_TABLE: [&[u8;2];8] = [ b"30", b"34", b"32", b"36", b"31", b"35", b"33", b"37" ];
-const BG_TABLE: [&[u8;2];8] = [ b"40", b"44", b"42", b"46", b"41", b"45", b"43", b"47" ];
+const FG_TABLE: [&[u8; 2]; 8] = [b"30", b"34", b"32", b"36", b"31", b"35", b"33", b"37"];
+const BG_TABLE: [&[u8; 2]; 8] = [b"40", b"44", b"42", b"46", b"41", b"45", b"43", b"47"];
 
-impl PCBoardParser  {
-
+impl PCBoardParser {
     pub fn print_char(&mut self, buf: &mut Vec<u8>, caret: &mut Caret, ch: u8) {
         if self.pcb_color {
             self.pcb_pos += 1;
@@ -37,16 +35,23 @@ impl PCBoardParser  {
                     }
                     2 => {
                         self.pcb_value = (self.pcb_value << 4) + conv_ch(ch);
-                        caret.set_attr(TextAttribute::from_u8(self.pcb_value, icy_engine::IceMode::Ice));
+                        caret.set_attr(TextAttribute::from_u8(
+                            self.pcb_value,
+                            icy_engine::IceMode::Ice,
+                        ));
                         buf.extend_from_slice(b"\x1B[");
                         if caret.get_attribute().is_bold() {
                             buf.extend_from_slice(b"1;");
                         } else {
                             buf.extend_from_slice(b"0;");
                         }
-                        buf.extend_from_slice(FG_TABLE[caret.get_attribute().get_foreground() as usize]);
+                        buf.extend_from_slice(
+                            FG_TABLE[caret.get_attribute().get_foreground() as usize],
+                        );
                         buf.extend_from_slice(b";");
-                        buf.extend_from_slice(BG_TABLE[caret.get_attribute().get_background() as usize]);
+                        buf.extend_from_slice(
+                            BG_TABLE[caret.get_attribute().get_background() as usize],
+                        );
                         buf.extend_from_slice(b"m");
                     }
                     _ => {}
@@ -56,7 +61,7 @@ impl PCBoardParser  {
             self.pcb_code = false;
             return;
         }
-        
+
         if self.pcb_code {
             match ch {
                 b'@' => {

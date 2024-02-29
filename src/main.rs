@@ -15,6 +15,9 @@ pub use raw::*;
 mod pcb_parser;
 pub use pcb_parser::*;
 
+use crate::data::PcbDataType;
+pub mod data;
+
 pub struct Connection {
     com: RawCom,
     vt: VT,
@@ -52,7 +55,7 @@ impl ExecutionContext for Connection {
         b.extend_from_slice(b"H");
         self.com.write(&b)?;
         Ok(())
-    } 
+    }
 
     fn print(&mut self, str: &str) -> Res<()> {
         let mut v = Vec::new();
@@ -106,6 +109,8 @@ fn main() -> Res<()> {
 
     let names = [
         "dragon.ans",
+        "CUBES.IG",
+        "guardian2.ans",
         "test.ans",
         "TG-HARL.ANS",
         "xibalba.ans",
@@ -138,17 +143,20 @@ fn main() -> Res<()> {
             connection.write_raw(b"Press enter").unwrap();
 
             let mut st = SystemTime::now();
-
+            let mut pcb_data = PcbDataType::default();
             loop {
                 if st.elapsed().unwrap() > Duration::from_secs(30) {
                     break;
                 }
-                // let prg = load_file(&"/home/mkrueger/work/pcx_board/AGSENTR1/AGSENTR.PPE");
+
+                let prg = ppl_engine::decompiler::load_file(
+                    &"/home/mkrueger/work/pcx_board/AGSLOG23/AGSLOG.PPE",
+                );
                 let mut got = false;
                 while connection.com.is_data_available().unwrap() {
                     let ch = connection.com.read_char_nonblocking();
                     if let Ok(ch) = ch {
-                        connection.write_raw(&vec![ch]).unwrap();
+                        connection.write_raw(&[ch]).unwrap();
                         st = SystemTime::now();
                         got = true;
                         if ch == b'\r' {
@@ -158,9 +166,14 @@ fn main() -> Res<()> {
                         if ch == b'\x1B' {
                             print!("\\x1B");
                         } else {
-                            print!("{} ({}/0x{:02X}),", char::from_u32(ch as u32).unwrap(), ch as u32, ch as u32);
+                            print!(
+                                "{} ({}/0x{:02X}),",
+                                char::from_u32(ch as u32).unwrap(),
+                                ch as u32,
+                                ch as u32
+                            );
                         }
-                    } 
+                    }
                     if ch.is_err() {
                         break;
                     }
@@ -170,9 +183,9 @@ fn main() -> Res<()> {
                 }
                 thread::sleep(Duration::from_millis(20));
 
-                /*
                 let mut io = MemoryIO::new();
-                match run(&prg, &mut connection, &mut io) {
+                println!("run  {:?}", prg);
+                match run(&prg, &mut connection, &mut io, &pcb_data) {
                     Ok(_) => {
                         while connection.com.is_data_available().unwrap() {
                             let ch = connection.com.read_char_nonblocking();
@@ -185,10 +198,10 @@ fn main() -> Res<()> {
                         }
                     }
                     Err(e) => {
-                        eprintln!("{}",e);
+                        eprintln!("{}", e);
                         break;
                     }
-                } */
+                }
             }
         });
     }

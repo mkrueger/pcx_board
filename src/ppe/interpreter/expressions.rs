@@ -1,9 +1,11 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
-use ppl_engine::{ast::{Expression, Constant, VariableValue, Declaration, BinOp, convert_to, VariableType}, tables::{FuncOpCode, PPL_TRUE, PPL_FALSE, CONSTANT_VALUES, FunctionDefinition}};
+use ppl_engine::{
+    ast::{convert_to, BinOp, Constant, Declaration, Expression, VariableType, VariableValue},
+    tables::{FuncOpCode, FunctionDefinition, CONSTANT_VALUES, PPL_FALSE, PPL_TRUE},
+};
 
-use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement, Res, InterpreterError};
-
+use crate::{ppe::interpreter::execute_statement, Interpreter, InterpreterError, Res, StackFrame};
 
 /// .
 ///
@@ -17,13 +19,18 @@ use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement, Res, I
 /// # Panics
 ///
 /// Panics if .
-#[must_use] pub fn evaluate_exp(
-    interpreter: &mut Interpreter, 
-    expr: &Expression,
-) -> Res<VariableValue> {
+#[must_use]
+pub fn evaluate_exp(interpreter: &mut Interpreter, expr: &Expression) -> Res<VariableValue> {
     match expr {
         Expression::Identifier(str) => {
-            let res = interpreter.cur_frame.last().unwrap().values.get(str).unwrap_or_else(|| panic!("variable {} not found", str)).clone();
+            let res = interpreter
+                .cur_frame
+                .last()
+                .unwrap()
+                .values
+                .get(str)
+                .unwrap_or_else(|| panic!("variable {} not found", str))
+                .clone();
             Ok(res)
         }
         Expression::Const(constant) => match constant {
@@ -40,31 +47,34 @@ use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement, Res, I
                         return Ok(val.1.clone());
                     }
                 }
-                 Err(Box::new(InterpreterError::UnsupportedConst(x)))
+                Err(Box::new(InterpreterError::UnsupportedConst(x)))
             }
         },
-        Expression::Parens(expr) |
-        Expression::Plus(expr) => evaluate_exp(interpreter, expr),
+        Expression::Parens(expr) | Expression::Plus(expr) => evaluate_exp(interpreter, expr),
         Expression::PredefinedFunctionCall(func_def, params) => {
             call_function(interpreter, func_def, params)
         }
         Expression::FunctionCall(name, parameters) => {
             for f in &interpreter.prg.function_implementations {
-                if let Declaration::Function(pname, params, _return_type) =  &f.declaration {
-                    if name != pname { continue; }
-                    let mut prg_frame = StackFrame { 
+                if let Declaration::Function(pname, params, _return_type) = &f.declaration {
+                    if name != pname {
+                        continue;
+                    }
+                    let mut prg_frame = StackFrame {
                         values: HashMap::new(),
-                        cur_ptr:0,
-                        label_table:0 
+                        cur_ptr: 0,
+                        label_table: 0,
                     };
 
                     for i in 0..parameters.len() {
                         if let Declaration::Variable(var_type, infos) = &params[i] {
                             let value = evaluate_exp(interpreter, &parameters[i])?;
                             for info in infos {
-                                prg_frame.values.insert(info.get_name().clone(), convert_to(*var_type, &value));
+                                prg_frame
+                                    .values
+                                    .insert(info.get_name().clone(), convert_to(*var_type, &value));
                             }
-                        } else  {
+                        } else {
                             panic!("invalid parameter declaration {:?}", params[i]);
                         }
                     }
@@ -72,7 +82,8 @@ use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement, Res, I
                     interpreter.cur_frame.push(prg_frame);
 
                     while interpreter.cur_frame.last().unwrap().cur_ptr < f.block.statements.len() {
-                        let stmt = &f.block.statements[interpreter.cur_frame.last().unwrap().cur_ptr as usize];
+                        let stmt = &f.block.statements
+                            [interpreter.cur_frame.last().unwrap().cur_ptr as usize];
                         execute_statement(interpreter, stmt)?;
                         interpreter.cur_frame.last_mut().unwrap().cur_ptr += 1;
                     }
@@ -85,16 +96,30 @@ use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement, Res, I
                     }
                 }
             }
-            if interpreter.cur_frame.last().unwrap().values.get(name).is_some() {
-                let expr = &evaluate_exp(interpreter,&parameters[0])?.clone();
-                let var_value = interpreter.cur_frame.last().unwrap().values.get(name).unwrap().clone();
+            if interpreter
+                .cur_frame
+                .last()
+                .unwrap()
+                .values
+                .get(name)
+                .is_some()
+            {
+                let expr = &evaluate_exp(interpreter, &parameters[0])?.clone();
+                let var_value = interpreter
+                    .cur_frame
+                    .last()
+                    .unwrap()
+                    .values
+                    .get(name)
+                    .unwrap()
+                    .clone();
                 if parameters.len() == 1 {
                     let i = get_int(expr) - 1;
                     if let VariableValue::Dim1(_, data) = &var_value {
                         return Ok(data[i as usize].clone());
                     }
                 }
-                /* 
+                /*
                 if parameters.len() == 2 {
                     if let VariableValue::Dim2(t, data) = var_value {
                         return data[get_int(&evaluate_exp(interpreter,&parameters[0]))][get_int(&evaluate_exp(interpreter,&parameters[1]))];
@@ -111,9 +136,11 @@ use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement, Res, I
         Expression::Not(expr) => {
             let value = evaluate_exp(interpreter, expr)?;
             match value {
-                VariableValue::Integer(x) => {
-                    Ok(VariableValue::Integer(if x == PPL_FALSE { PPL_TRUE } else { PPL_FALSE }))
-                }
+                VariableValue::Integer(x) => Ok(VariableValue::Integer(if x == PPL_FALSE {
+                    PPL_TRUE
+                } else {
+                    PPL_FALSE
+                })),
                 VariableValue::Boolean(x) => Ok(VariableValue::Boolean(!x)),
                 _ => {
                     panic!("unsupported for minus {:?} value {:?}", expr, value);
@@ -131,25 +158,23 @@ use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement, Res, I
         }
         Expression::BinaryExpression(op, l_value, r_value) => match op {
             BinOp::Add => {
-                Ok(evaluate_exp(interpreter, l_value)?
-                    + evaluate_exp(interpreter, r_value)?)
+                Ok(evaluate_exp(interpreter, l_value)? + evaluate_exp(interpreter, r_value)?)
             }
             BinOp::Sub => {
-                Ok(evaluate_exp(interpreter, l_value)?
-                    - evaluate_exp(interpreter, r_value)?)
+                Ok(evaluate_exp(interpreter, l_value)? - evaluate_exp(interpreter, r_value)?)
             }
             BinOp::Mul => {
-                Ok(evaluate_exp(interpreter, l_value)?
-                    * evaluate_exp(interpreter, r_value)?)
+                Ok(evaluate_exp(interpreter, l_value)? * evaluate_exp(interpreter, r_value)?)
             }
             BinOp::Div => {
-                Ok(evaluate_exp(interpreter, l_value)?
-                    / evaluate_exp(interpreter, r_value)?)
+                Ok(evaluate_exp(interpreter, l_value)? / evaluate_exp(interpreter, r_value)?)
             }
-            BinOp::Mod => Ok(evaluate_exp(interpreter, l_value)?
-                .modulo(evaluate_exp(interpreter, r_value)?)),
-            BinOp::PoW => Ok(evaluate_exp(interpreter, l_value)?
-                .pow(evaluate_exp(interpreter, r_value)?)),
+            BinOp::Mod => {
+                Ok(evaluate_exp(interpreter, l_value)?.modulo(evaluate_exp(interpreter, r_value)?))
+            }
+            BinOp::PoW => {
+                Ok(evaluate_exp(interpreter, l_value)?.pow(evaluate_exp(interpreter, r_value)?))
+            }
             BinOp::Eq => {
                 let l = evaluate_exp(interpreter, l_value)?;
                 let r = evaluate_exp(interpreter, r_value)?;
@@ -160,27 +185,23 @@ use crate::{Interpreter, StackFrame, ppe::interpreter::execute_statement, Res, I
                 let r = evaluate_exp(interpreter, r_value)?;
                 Ok(VariableValue::Boolean(l != r))
             }
-            BinOp::Or => evaluate_exp(interpreter, l_value)
-                .or(evaluate_exp(interpreter, r_value)),
-            BinOp::And => evaluate_exp(interpreter, l_value)
-                .and(evaluate_exp(interpreter, r_value)),
+            BinOp::Or => evaluate_exp(interpreter, l_value).or(evaluate_exp(interpreter, r_value)),
+            BinOp::And => {
+                evaluate_exp(interpreter, l_value).and(evaluate_exp(interpreter, r_value))
+            }
             BinOp::Lower => Ok(VariableValue::Boolean(
-                evaluate_exp(interpreter, l_value)?
-                    < evaluate_exp(interpreter, r_value)?,
+                evaluate_exp(interpreter, l_value)? < evaluate_exp(interpreter, r_value)?,
             )),
             BinOp::LowerEq => Ok(VariableValue::Boolean(
-                evaluate_exp(interpreter, l_value)?
-                    <= evaluate_exp(interpreter, r_value)?,
+                evaluate_exp(interpreter, l_value)? <= evaluate_exp(interpreter, r_value)?,
             )),
             BinOp::Greater => Ok(VariableValue::Boolean(
-                evaluate_exp(interpreter, l_value)?
-                    > evaluate_exp(interpreter, r_value)?,
+                evaluate_exp(interpreter, l_value)? > evaluate_exp(interpreter, r_value)?,
             )),
             BinOp::GreaterEq => Ok(VariableValue::Boolean(
-                evaluate_exp(interpreter, l_value)?
-                    >= evaluate_exp(interpreter, r_value)?,
+                evaluate_exp(interpreter, l_value)? >= evaluate_exp(interpreter, r_value)?,
             )),
-        }
+        },
     }
 }
 
@@ -194,19 +215,25 @@ pub fn get_int(val: &VariableValue) -> i32 {
 
 pub fn get_string(val: &VariableValue) -> String {
     match val {
-        VariableValue::Boolean(b) => if *b { "1".to_string() } else { "0".to_string() },
+        VariableValue::Boolean(b) => {
+            if *b {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            }
+        }
         VariableValue::Integer(i) => i.to_string(),
         VariableValue::Unsigned(i) => i.to_string(),
-        VariableValue::Word(i) =>  i.to_string(),
-        VariableValue::SWord(i) =>  i.to_string(),
-        VariableValue::Byte(i) =>  i.to_string(),
-        VariableValue::SByte(i) =>  i.to_string(),
-        VariableValue::Money(i) =>  i.to_string(), // TODO
-        VariableValue::Real(i) =>  i.to_string(),
+        VariableValue::Word(i) => i.to_string(),
+        VariableValue::SWord(i) => i.to_string(),
+        VariableValue::Byte(i) => i.to_string(),
+        VariableValue::SByte(i) => i.to_string(),
+        VariableValue::Money(i) => i.to_string(), // TODO
+        VariableValue::Real(i) => i.to_string(),
         VariableValue::String(i) => i.clone(),
-        VariableValue::Date(i) =>  i.to_string(), // TODO
-        VariableValue::EDate(i) =>  i.to_string(), // TODO
-        VariableValue::Time(i) =>  i.to_string(), // TODO
+        VariableValue::Date(i) => i.to_string(),      // TODO
+        VariableValue::EDate(i) => i.to_string(),     // TODO
+        VariableValue::Time(i) => i.to_string(),      // TODO
         VariableValue::Dim1(_, _) => val.to_string(), // TODO
         VariableValue::Dim2(_, _) => val.to_string(), // TODO
         VariableValue::Dim3(_, _) => val.to_string(), // TODO
@@ -220,12 +247,8 @@ fn call_function(
 ) -> Res<VariableValue> {
     Ok(match func_def.opcode {
         FuncOpCode::LEN => predefined_functions::len(evaluate_exp(interpreter, &params[0])?),
-        FuncOpCode::LOWER => {
-            predefined_functions::lower(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::UPPER => {
-            predefined_functions::upper(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::LOWER => predefined_functions::lower(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::UPPER => predefined_functions::upper(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::MID => predefined_functions::mid(
             evaluate_exp(interpreter, &params[0])?,
             evaluate_exp(interpreter, &params[1])?,
@@ -239,9 +262,7 @@ fn call_function(
             evaluate_exp(interpreter, &params[0])?,
             evaluate_exp(interpreter, &params[1])?,
         ),
-        FuncOpCode::SPACE => {
-            predefined_functions::space(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::SPACE => predefined_functions::space(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::FERR => {
             let a = evaluate_exp(interpreter, &params[0])?;
             predefined_functions::ferr(interpreter, a)
@@ -283,9 +304,7 @@ fn call_function(
             evaluate_exp(interpreter, &params[0])?,
             evaluate_exp(interpreter, &params[1])?,
         ),
-        FuncOpCode::RANDOM => {
-            predefined_functions::random(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::RANDOM => predefined_functions::random(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DATE => predefined_functions::date(),
         FuncOpCode::TIME => predefined_functions::time(),
 
@@ -304,36 +323,24 @@ fn call_function(
         FuncOpCode::U_MSGRD => predefined_functions::u_msgrd(interpreter),
         FuncOpCode::U_MSGWR => predefined_functions::u_msgwr(interpreter),
 
-        FuncOpCode::YEAR => {
-            predefined_functions::year(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::MONTH => {
-            predefined_functions::month(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::YEAR => predefined_functions::year(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::MONTH => predefined_functions::month(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DAY => predefined_functions::day(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DOW => predefined_functions::dow(evaluate_exp(interpreter, &params[0])?),
-        FuncOpCode::HOUR => {
-            predefined_functions::hour(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::HOUR => predefined_functions::hour(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::MIN => predefined_functions::min(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::SEC => predefined_functions::sec(evaluate_exp(interpreter, &params[0])?),
-        FuncOpCode::TIMEAP => {
-            predefined_functions::timeap(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::TIMEAP => predefined_functions::timeap(evaluate_exp(interpreter, &params[0])?),
 
         FuncOpCode::VER => predefined_functions::ver(evaluate_exp(interpreter, &params[0])?),
-        FuncOpCode::NOCHAR => {
-            predefined_functions::nochar(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::NOCHAR => predefined_functions::nochar(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::YESCHAR => {
             predefined_functions::yeschar(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::STRIPATX => {
             predefined_functions::strip_atx(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::INKEY => {
-            predefined_functions::inkey(interpreter)?
-        }
+        FuncOpCode::INKEY => predefined_functions::inkey(interpreter)?,
         FuncOpCode::TOSTRING => {
             predefined_functions::tostring(evaluate_exp(interpreter, &params[0])?)
         }
@@ -361,23 +368,19 @@ fn call_function(
         FuncOpCode::CURCONF => {
             predefined_functions::curconf(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::PCBDAT => {
-            predefined_functions::pcbdat(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::PPEPATH => {
-            predefined_functions::ppepath(interpreter)
-        }
+        FuncOpCode::PCBDAT => predefined_functions::pcbdat(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::PPEPATH => predefined_functions::ppepath(interpreter),
         FuncOpCode::VALDATE => {
             predefined_functions::valdate(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::VALTIME => {
             predefined_functions::valtime(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::PCBNODE => {
-            predefined_functions::pcbnode(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::PCBNODE => predefined_functions::pcbnode(interpreter),
         FuncOpCode::READLINE => {
-            predefined_functions::readline(evaluate_exp(interpreter, &params[0])?)
+            let file = evaluate_exp(interpreter, &params[0])?;
+            let line = evaluate_exp(interpreter, &params[1])?;
+            predefined_functions::readline(interpreter, file, line)?
         }
         FuncOpCode::SYSOPSEC => {
             predefined_functions::sysopsec(evaluate_exp(interpreter, &params[0])?)
@@ -397,91 +400,37 @@ fn call_function(
         FuncOpCode::UN_OPER => {
             predefined_functions::un_oper(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::CURSEC => {
-            predefined_functions::cursec(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::GETTOKEN => {
-            predefined_functions::gettoken(interpreter)
-        }
+        FuncOpCode::CURSEC => predefined_functions::cursec(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::GETTOKEN => predefined_functions::gettoken(interpreter),
         FuncOpCode::MINLEFT => {
             predefined_functions::minleft(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::MINON => {
-            predefined_functions::minon(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::GETENV => {
-            predefined_functions::getenv(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::CALLID => {
-            predefined_functions::callid(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGAL => {
-            predefined_functions::regal(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGAH => {
-            predefined_functions::regah(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGBL => {
-            predefined_functions::regbl(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGBH => {
-            predefined_functions::regbh(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGCL => {
-            predefined_functions::regcl(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGCH => {
-            predefined_functions::regch(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGDL => {
-            predefined_functions::regdl(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGDH => {
-            predefined_functions::regdh(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGAX => {
-            predefined_functions::regax(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGBX => {
-            predefined_functions::regbx(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGCX => {
-            predefined_functions::regcx(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGDX => {
-            predefined_functions::regdx(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGSI => {
-            predefined_functions::regsi(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGDI => {
-            predefined_functions::regdi(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGF => {
-            predefined_functions::regf(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGCF => {
-            predefined_functions::regcf(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGDS => {
-            predefined_functions::regds(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::REGES => {
-            predefined_functions::reges(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::MINON => predefined_functions::minon(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::GETENV => predefined_functions::getenv(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::CALLID => predefined_functions::callid(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGAL => predefined_functions::regal(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGAH => predefined_functions::regah(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGBL => predefined_functions::regbl(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGBH => predefined_functions::regbh(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGCL => predefined_functions::regcl(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGCH => predefined_functions::regch(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGDL => predefined_functions::regdl(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGDH => predefined_functions::regdh(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGAX => predefined_functions::regax(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGBX => predefined_functions::regbx(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGCX => predefined_functions::regcx(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGDX => predefined_functions::regdx(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGSI => predefined_functions::regsi(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGDI => predefined_functions::regdi(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGF => predefined_functions::regf(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGCF => predefined_functions::regcf(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGDS => predefined_functions::regds(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::REGES => predefined_functions::reges(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::B2W => predefined_functions::b2w(evaluate_exp(interpreter, &params[0])?),
-        FuncOpCode::PEEKB => {
-            predefined_functions::peekb(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::PEEKW => {
-            predefined_functions::peekw(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::MKADDR => {
-            predefined_functions::mkaddr(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::EXIST => {
-            predefined_functions::exist(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::PEEKB => predefined_functions::peekb(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::PEEKW => predefined_functions::peekw(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::MKADDR => predefined_functions::mkaddr(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::EXIST => predefined_functions::exist(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::I2S => predefined_functions::i2s(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::S2I => predefined_functions::s2i(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::CARRIER => {
@@ -490,40 +439,20 @@ fn call_function(
         FuncOpCode::TOKENSTR => {
             predefined_functions::tokenstr(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::CDON => {
-            predefined_functions::cdon(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::CDON => predefined_functions::cdon(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::LANGEXT => {
             predefined_functions::langext(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::ANSION => {
-            predefined_functions::ansion(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::VALCC => {
-            predefined_functions::valcc(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::FMTCC => {
-            predefined_functions::fmtcc(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::CCTYPE => {
-            predefined_functions::cctype(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::GETX => {
-            predefined_functions::getx(interpreter)
-        }
-        FuncOpCode::GETY => {
-            predefined_functions::gety(interpreter)
-        }
-        FuncOpCode::BAND => {
-            predefined_functions::band(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::ANSION => predefined_functions::ansion(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::VALCC => predefined_functions::valcc(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::FMTCC => predefined_functions::fmtcc(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::CCTYPE => predefined_functions::cctype(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::GETX => predefined_functions::getx(interpreter),
+        FuncOpCode::GETY => predefined_functions::gety(interpreter),
+        FuncOpCode::BAND => predefined_functions::band(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::BOR => predefined_functions::bor(evaluate_exp(interpreter, &params[0])?),
-        FuncOpCode::BXOR => {
-            predefined_functions::bxor(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::BNOT => {
-            predefined_functions::bnot(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::BXOR => predefined_functions::bxor(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::BNOT => predefined_functions::bnot(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::U_PWDHIST => {
             predefined_functions::u_pwdhist(evaluate_exp(interpreter, &params[0])?)
         }
@@ -533,9 +462,7 @@ fn call_function(
         FuncOpCode::U_PWDTC => {
             predefined_functions::u_pwdtc(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::U_STAT => {
-            predefined_functions::u_stat(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::U_STAT => predefined_functions::u_stat(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DEFCOLOR => {
             predefined_functions::defcolor(evaluate_exp(interpreter, &params[0])?)
         }
@@ -547,36 +474,24 @@ fn call_function(
         FuncOpCode::FILEINF => {
             predefined_functions::fileinf(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::PPENAME => {
-            predefined_functions::ppename(interpreter)
-        }
-        FuncOpCode::MKDATE => {
-            predefined_functions::mkdate(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::PPENAME => predefined_functions::ppename(interpreter),
+        FuncOpCode::MKDATE => predefined_functions::mkdate(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::CURCOLOR => {
             predefined_functions::curcolor(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::KINKEY => {
-            predefined_functions::kinkey(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::MINKEY => {
-            predefined_functions::minkey(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::KINKEY => predefined_functions::kinkey(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::MINKEY => predefined_functions::minkey(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::MAXNODE => {
             predefined_functions::maxnode(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::SLPATH => {
-            predefined_functions::slpath(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::SLPATH => predefined_functions::slpath(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::HELPPATH => {
             predefined_functions::helppath(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::TEMPPATH => {
             predefined_functions::temppath(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::MODEM => {
-            predefined_functions::modem(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::MODEM => predefined_functions::modem(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::LOGGEDON => {
             predefined_functions::loggedon(evaluate_exp(interpreter, &params[0])?)
         }
@@ -595,9 +510,7 @@ fn call_function(
         FuncOpCode::U_INCONF => {
             predefined_functions::u_inconf(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::PEEKDW => {
-            predefined_functions::peekdw(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::PEEKDW => predefined_functions::peekdw(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DBGLEVEL => {
             predefined_functions::dbglevel(evaluate_exp(interpreter, &params[0])?)
         }
@@ -616,12 +529,8 @@ fn call_function(
         FuncOpCode::TOBOOLEAN => {
             predefined_functions::toboolean(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::TOBYTE => {
-            predefined_functions::tobyte(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::TODATE => {
-            predefined_functions::todate(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::TOBYTE => predefined_functions::tobyte(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::TODATE => predefined_functions::todate(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::TODREAL => {
             predefined_functions::todreal(evaluate_exp(interpreter, &params[0])?)
         }
@@ -634,30 +543,20 @@ fn call_function(
         FuncOpCode::TOMONEY => {
             predefined_functions::tomoney(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::TOREAL => {
-            predefined_functions::toreal(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::TOREAL => predefined_functions::toreal(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::TOSBYTE => {
             predefined_functions::tosbyte(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::TOSWORD => {
             predefined_functions::tosword(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::TOTIME => {
-            predefined_functions::totime(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::TOTIME => predefined_functions::totime(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::TOUNSIGNED => {
             predefined_functions::tounsigned(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::TOWORD => {
-            predefined_functions::toword(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::MIXED => {
-            predefined_functions::mixed(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::ALIAS => {
-            predefined_functions::alias(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::TOWORD => predefined_functions::toword(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::MIXED => predefined_functions::mixed(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::ALIAS => predefined_functions::alias(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::CONFREG => {
             predefined_functions::confreg(evaluate_exp(interpreter, &params[0])?)
         }
@@ -670,9 +569,7 @@ fn call_function(
         FuncOpCode::CONFSYS => {
             predefined_functions::confsys(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::CONFMW => {
-            predefined_functions::confmw(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::CONFMW => predefined_functions::confmw(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::LPRINTED => {
             predefined_functions::lprinted(evaluate_exp(interpreter, &params[0])?)
         }
@@ -694,9 +591,7 @@ fn call_function(
         FuncOpCode::CHATSTAT => {
             predefined_functions::chatstat(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DEFANS => {
-            predefined_functions::defans(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DEFANS => predefined_functions::defans(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::LASTANS => {
             predefined_functions::lastans(evaluate_exp(interpreter, &params[0])?)
         }
@@ -743,12 +638,8 @@ fn call_function(
         FuncOpCode::INBYTES => {
             predefined_functions::inbytes(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::CRC32 => {
-            predefined_functions::crc32(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::PCBMAC => {
-            predefined_functions::pcbmac(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::CRC32 => predefined_functions::crc32(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::PCBMAC => predefined_functions::pcbmac(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::ACTMSGNUM => {
             predefined_functions::actmsgnum(evaluate_exp(interpreter, &params[0])?)
         }
@@ -762,9 +653,7 @@ fn call_function(
         FuncOpCode::DGETALIAS => {
             predefined_functions::dgetalias(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DBOF => {
-            predefined_functions::dbof(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DBOF => predefined_functions::dbof(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DCHANGED => {
             predefined_functions::dchanged(evaluate_exp(interpreter, &params[0])?)
         }
@@ -774,121 +663,73 @@ fn call_function(
         FuncOpCode::DDELETED => {
             predefined_functions::ddeleted(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DEOF => {
-            predefined_functions::deof(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DERR => {
-            predefined_functions::derr(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DEOF => predefined_functions::deof(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DERR => predefined_functions::derr(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DFIELDS => {
             predefined_functions::dfields(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::DLENGTH => {
             predefined_functions::dlength(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DNAME => {
-            predefined_functions::dname(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DNAME => predefined_functions::dname(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DRECCOUNT => {
             predefined_functions::dreccount(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DRECNO => {
-            predefined_functions::drecno(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DTYPE => {
-            predefined_functions::dtype(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::FNEXT => {
-            predefined_functions::fnext(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DNEXT => {
-            predefined_functions::dnext(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DRECNO => predefined_functions::drecno(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DTYPE => predefined_functions::dtype(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::FNEXT => predefined_functions::fnext(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DNEXT => predefined_functions::dnext(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::TODDATE => {
             predefined_functions::toddate(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::DCLOSEALL => {
             predefined_functions::dcloseall(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DOPEN => {
-            predefined_functions::dopen(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DCLOSE => {
-            predefined_functions::dclose(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DOPEN => predefined_functions::dopen(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DCLOSE => predefined_functions::dclose(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DSETALIAS => {
             predefined_functions::dsetalias(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DPACK => {
-            predefined_functions::dpack(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DLOCKF => {
-            predefined_functions::dlockf(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DLOCK => {
-            predefined_functions::dlock(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DLOCKR => {
-            predefined_functions::dlockr(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DPACK => predefined_functions::dpack(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DLOCKF => predefined_functions::dlockf(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DLOCK => predefined_functions::dlock(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DLOCKR => predefined_functions::dlockr(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DUNLOCK => {
             predefined_functions::dunlock(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DNOPEN => {
-            predefined_functions::dnopen(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DNOPEN => predefined_functions::dnopen(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DNCLOSE => {
             predefined_functions::dnclose(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::DNCLOSEALL => {
             predefined_functions::dncloseall(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DNEW => {
-            predefined_functions::dnew(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DADD => {
-            predefined_functions::dadd(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DNEW => predefined_functions::dnew(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DADD => predefined_functions::dadd(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DAPPEND => {
             predefined_functions::dappend(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DTOP => {
-            predefined_functions::dtop(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DTOP => predefined_functions::dtop(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DGO => predefined_functions::dgo(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DBOTTOM => {
             predefined_functions::dbottom(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DSKIP => {
-            predefined_functions::dskip(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DBLANK => {
-            predefined_functions::dblank(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DSKIP => predefined_functions::dskip(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DBLANK => predefined_functions::dblank(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DDELETE => {
             predefined_functions::ddelete(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::DRECALL => {
             predefined_functions::drecall(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DTAG => {
-            predefined_functions::dtag(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DSEEK => {
-            predefined_functions::dseek(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DTAG => predefined_functions::dtag(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DSEEK => predefined_functions::dseek(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DFBLANK => {
             predefined_functions::dfblank(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::DGET => {
-            predefined_functions::dget(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DPUT => {
-            predefined_functions::dput(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::DFCOPY => {
-            predefined_functions::dfcopy(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::DGET => predefined_functions::dget(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DPUT => predefined_functions::dput(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::DFCOPY => predefined_functions::dfcopy(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::DSELECT => {
             predefined_functions::dselect(evaluate_exp(interpreter, &params[0])?)
         }
@@ -914,9 +755,7 @@ fn call_function(
         FuncOpCode::CHECKRIP => {
             predefined_functions::checkrip(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::RIPVER => {
-            predefined_functions::ripver(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::RIPVER => predefined_functions::ripver(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::QWKLIMITS => {
             predefined_functions::qwklimits(evaluate_exp(interpreter, &params[0])?)
         }
@@ -932,13 +771,9 @@ fn call_function(
         FuncOpCode::CONFINFO => {
             predefined_functions::confinfo(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::TINKEY => {
-            predefined_functions::tinkey(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::TINKEY => predefined_functions::tinkey(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::CWD => predefined_functions::cwd(evaluate_exp(interpreter, &params[0])?),
-        FuncOpCode::INSTRR => {
-            predefined_functions::instrr(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::INSTRR => predefined_functions::instrr(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::FDORDAKA => {
             predefined_functions::fdordaka(evaluate_exp(interpreter, &params[0])?)
         }
@@ -948,30 +783,18 @@ fn call_function(
         FuncOpCode::FDORDAREA => {
             predefined_functions::fdordarea(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::FDOQRD => {
-            predefined_functions::fdoqrd(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::FDOQRD => predefined_functions::fdoqrd(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::GETDRIVE => {
             predefined_functions::getdrive(evaluate_exp(interpreter, &params[0])?)
         }
         FuncOpCode::SETDRIVE => {
             predefined_functions::setdrive(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::BS2I => {
-            predefined_functions::bs2i(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::BD2I => {
-            predefined_functions::bd2i(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::I2BS => {
-            predefined_functions::i2bs(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::I2BD => {
-            predefined_functions::i2bd(evaluate_exp(interpreter, &params[0])?)
-        }
-        FuncOpCode::FTELL => {
-            predefined_functions::ftell(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::BS2I => predefined_functions::bs2i(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::BD2I => predefined_functions::bd2i(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::I2BS => predefined_functions::i2bs(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::I2BD => predefined_functions::i2bd(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::FTELL => predefined_functions::ftell(evaluate_exp(interpreter, &params[0])?),
         _ => panic!("Unsupported function {:?}", func_def),
     })
 }

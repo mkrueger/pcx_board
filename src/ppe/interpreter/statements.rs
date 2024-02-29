@@ -1,11 +1,11 @@
-use ppl_engine::ast::*;
-use ppl_engine::tables::*;
-use crate::Interpreter;
-use crate::InterpreterError;
-use crate::Res;
 use crate::evaluate_exp;
 use crate::get_int;
 use crate::get_string;
+use crate::Interpreter;
+use crate::InterpreterError;
+use crate::Res;
+use ppl_engine::ast::*;
+use ppl_engine::tables::*;
 
 /// .
 ///
@@ -49,8 +49,8 @@ pub fn call_predefined_procedure(
         OpCode::CONFFLAG => predefined_procedures::confflag(interpreter, params),
         OpCode::CONFUNFLAG => predefined_procedures::confunflag(interpreter, params),
         OpCode::DISPFILE => {
-            let file = get_string(&evaluate_exp(interpreter,&params[0])?);
-            let flags = get_int(&evaluate_exp(interpreter,&params[1])?);
+            let file = get_string(&evaluate_exp(interpreter, &params[0])?);
+            let flags = get_int(&evaluate_exp(interpreter, &params[1])?);
             predefined_procedures::dispfile(interpreter, file, flags)
         }
 
@@ -92,9 +92,9 @@ pub fn call_predefined_procedure(
         OpCode::NEWLINE => predefined_procedures::newline(interpreter, params),
         OpCode::NEWLINES => predefined_procedures::newlines(interpreter, params),
         OpCode::TOKENIZE => {
-            let s = get_string(&evaluate_exp(interpreter,&params[0])?);
+            let s = get_string(&evaluate_exp(interpreter, &params[0])?);
             predefined_procedures::tokenize(interpreter, s)
-        },
+        }
         OpCode::GETTOKEN => predefined_procedures::gettoken(interpreter, params),
         OpCode::SHELL => predefined_procedures::shell(interpreter, params),
         OpCode::DISPTEXT => predefined_procedures::disptext(interpreter, params),
@@ -268,9 +268,7 @@ pub fn call_predefined_procedure(
         OpCode::FDOQADD => predefined_procedures::fdoqadd(interpreter, params),
         OpCode::FDOQDEL => predefined_procedures::fdoqdel(interpreter, params),
         OpCode::SOUNDDELAY => predefined_procedures::sounddelay(interpreter, params),
-        _ => {
-            Err(Box::new(InterpreterError::UnsupportedOpCode(def.opcode)))
-        }
+        _ => Err(Box::new(InterpreterError::UnsupportedOpCode(def.opcode))),
     }
 }
 

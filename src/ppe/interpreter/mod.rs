@@ -5,6 +5,7 @@ pub mod expressions;
 use ppl_engine::ast::*;
 use ppl_engine::tables::PPL_TRUE;
 
+use crate::data::PcbDataType;
 use crate::Res;
 use crate::VT;
 
@@ -16,6 +17,7 @@ pub use self::statements::*;
 pub mod io;
 pub use self::io::*;
 
+pub mod errors;
 mod tests;
 
 pub trait ExecutionContext {
@@ -45,6 +47,8 @@ pub struct Interpreter<'a> {
     cur_frame: Vec<StackFrame>,
     io: &'a mut dyn PCBoardIO,
     pub is_running: bool,
+
+    pub pcb_data: PcbDataType,
 
     pub cur_tokens: Vec<String>, //  stack_frames: Vec<StackFrame>
 }
@@ -274,7 +278,12 @@ fn calc_table(blk: &Block) -> HashMap<String, usize> {
     res
 }
 
-pub fn run(prg: &Program, ctx: &mut dyn ExecutionContext, io: &mut dyn PCBoardIO) -> Res<bool> {
+pub fn run(
+    prg: &Program,
+    ctx: &mut dyn ExecutionContext,
+    io: &mut dyn PCBoardIO,
+    pcb_data: &PcbDataType,
+) -> Res<bool> {
     let cur_frame = StackFrame {
         values: HashMap::new(),
         cur_ptr: 0,
@@ -290,6 +299,7 @@ pub fn run(prg: &Program, ctx: &mut dyn ExecutionContext, io: &mut dyn PCBoardIO
         io,
         is_running: true,
         cur_tokens: Vec::new(),
+        pcb_data: pcb_data.clone(),
         //  stack_frames: vec![]
     };
 
@@ -299,8 +309,7 @@ pub fn run(prg: &Program, ctx: &mut dyn ExecutionContext, io: &mut dyn PCBoardIO
     while interpreter.is_running
         && interpreter.cur_frame.last().unwrap().cur_ptr < prg.main_block.statements.len()
     {
-        let stmt =
-            &prg.main_block.statements[interpreter.cur_frame.last().unwrap().cur_ptr ];
+        let stmt = &prg.main_block.statements[interpreter.cur_frame.last().unwrap().cur_ptr];
         match execute_statement(&mut interpreter, stmt) {
             Ok(_) => {}
             Err(err) => {

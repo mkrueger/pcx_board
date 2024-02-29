@@ -113,7 +113,8 @@ pub struct DiskIO {
 }
 
 impl DiskIO {
-    #[must_use] pub fn new(path: &str) -> Self {
+    #[must_use]
+    pub fn new(path: &str) -> Self {
         DiskIO {
             path: path.to_string(),
             channels: [
@@ -302,7 +303,8 @@ pub struct MemoryIO {
 }
 
 impl MemoryIO {
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         MemoryIO {
             files: HashMap::new(),
             channels: [

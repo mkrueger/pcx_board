@@ -27,30 +27,27 @@ impl RawCom {
 
     fn fill_buffer(&mut self) -> io::Result<()> {
         let mut buf = [0; 1024 * 8];
-        loop {
-            match self.tcp_stream.read(&mut buf) {
-                Ok(size) => {
-                    self.buf.extend(buf[0..size].iter());
-                    break;
+        match self.tcp_stream.read(&mut buf) {
+            Ok(size) => {
+                self.buf.extend(buf[0..size].iter());
+            }
+            Err(ref e) => {
+                if e.kind() == io::ErrorKind::WouldBlock {
+                    return Ok(());
                 }
-                Err(ref e) => {
-                    if e.kind() == io::ErrorKind::WouldBlock {
-                        break;
-                    }
-                    return Err(io::Error::new(
-                        ErrorKind::ConnectionAborted,
-                        format!("{}", e),
-                    ));
-                }
-            };
-        }
+                return Err(io::Error::new(
+                    ErrorKind::ConnectionAborted,
+                    format!("{}", e),
+                ));
+            }
+        };
         Ok(())
     }
 
     fn fill_buffer_wait(&mut self, _timeout: Duration) -> io::Result<()> {
         self.tcp_stream.set_nonblocking(false)?;
         self.fill_buffer()?;
-        while self.buf.len() == 0 {
+        while self.buf.is_empty() {
             self.fill_buffer()?;
             thread::sleep(Duration::from_millis(10));
         }
