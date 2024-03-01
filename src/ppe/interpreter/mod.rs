@@ -5,7 +5,10 @@ pub mod expressions;
 use ppl_engine::ast::*;
 use ppl_engine::tables::PPL_TRUE;
 
+use crate::data::IcyBoardData;
+use crate::data::Node;
 use crate::data::PcbDataType;
+use crate::data::UserRecord;
 use crate::Res;
 use crate::VT;
 
@@ -35,6 +38,8 @@ pub trait ExecutionContext {
 
 pub struct StackFrame {
     values: HashMap<String, VariableValue>,
+
+    gosub_stack: Vec<usize>,
     cur_ptr: usize,
     label_table: i32,
 }
@@ -48,7 +53,10 @@ pub struct Interpreter<'a> {
     io: &'a mut dyn PCBoardIO,
     pub is_running: bool,
 
-    pub pcb_data: PcbDataType,
+    pub pcb_data: IcyBoardData,
+    pub cur_user: usize,
+    pub current_user: Option<UserRecord>,
+    pub pcb_node: Option<Node>,
 
     pub cur_tokens: Vec<String>, //  stack_frames: Vec<StackFrame>
 }
@@ -61,7 +69,7 @@ pub fn create_array(
     match var_info {
         VarInfo::Var0(_) => panic!(""),
         VarInfo::Var1(_, vec) => {
-            let dim = get_int(&evaluate_exp(interpreter, vec)?);
+            let dim = get_int(&evaluate_exp(interpreter, vec)?)?;
             let mut v = Vec::new();
             v.resize(dim as usize, VariableValue::Integer(0));
             Ok(VariableValue::Dim1(var_type, v))
@@ -136,7 +144,7 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
                     }
                 };
 
-                set_array_value(val, var_info, value, get_int(dim1) as usize - 1);
+                set_array_value(val, var_info, value, get_int(dim1)? as usize - 1);
             } else {
                 interpreter
                     .cur_frame
@@ -151,6 +159,33 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
                 [interpreter.cur_frame.last().unwrap().label_table as usize];
             interpreter.cur_frame.last_mut().unwrap().cur_ptr = *table.get(label).unwrap();
         }
+
+        Statement::Gosub(label) => {
+            let table = &interpreter.label_tables
+                [interpreter.cur_frame.last().unwrap().label_table as usize];
+
+            let ptr = interpreter.cur_frame.last_mut().unwrap().cur_ptr;
+            interpreter
+                .cur_frame
+                .last_mut()
+                .unwrap()
+                .gosub_stack
+                .push(ptr);
+            interpreter.cur_frame.last_mut().unwrap().cur_ptr = *table.get(label).unwrap();
+        }
+        Statement::Return => {
+            let table = &interpreter.label_tables
+                [interpreter.cur_frame.last().unwrap().label_table as usize];
+            interpreter.cur_frame.last_mut().unwrap().cur_ptr = interpreter
+                .cur_frame
+                .last_mut()
+                .unwrap()
+                .gosub_stack
+                .pop()
+                .unwrap()
+                + 1;
+        }
+
         Statement::Call(def, params) => {
             call_predefined_procedure(interpreter, def, params)?;
         }
@@ -163,6 +198,7 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
                     }
                     let mut prg_frame = StackFrame {
                         values: HashMap::new(),
+                        gosub_stack: Vec::new(),
                         cur_ptr: 0,
                         label_table: 0,
                     };
@@ -282,10 +318,11 @@ pub fn run(
     prg: &Program,
     ctx: &mut dyn ExecutionContext,
     io: &mut dyn PCBoardIO,
-    pcb_data: &PcbDataType,
+    pcb_data: &IcyBoardData,
 ) -> Res<bool> {
     let cur_frame = StackFrame {
         values: HashMap::new(),
+        gosub_stack: Vec::new(),
         cur_ptr: 0,
         label_table: 0,
     };
@@ -300,6 +337,9 @@ pub fn run(
         is_running: true,
         cur_tokens: Vec::new(),
         pcb_data: pcb_data.clone(),
+        cur_user: 0,
+        current_user: None,
+        pcb_node: None,
         //  stack_frames: vec![]
     };
 

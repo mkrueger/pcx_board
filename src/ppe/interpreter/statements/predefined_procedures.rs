@@ -8,8 +8,8 @@ pub fn cls(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     interpreter.ctx.print("\x1B[2J")
 }
 
-pub fn clreol(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+pub fn clreol(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    interpreter.ctx.print("\x1B[K")
 }
 pub fn more(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
@@ -44,34 +44,34 @@ pub fn input(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
 pub fn fcreate(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?)? as usize;
     let file = &evaluate_exp(interpreter, &params[1])?.to_string();
-    let am = get_int(&evaluate_exp(interpreter, &params[2])?);
-    let sm = get_int(&evaluate_exp(interpreter, &params[3])?);
+    let am = get_int(&evaluate_exp(interpreter, &params[2])?)?;
+    let sm = get_int(&evaluate_exp(interpreter, &params[3])?)?;
     interpreter.io.fcreate(channel, file, am, sm);
     Ok(())
 }
 
 pub fn fopen(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?)? as usize;
     let file = &evaluate_exp(interpreter, &params[1])?.to_string();
-    let am = get_int(&evaluate_exp(interpreter, &params[2])?);
-    let sm = get_int(&evaluate_exp(interpreter, &params[3])?);
+    let am = get_int(&evaluate_exp(interpreter, &params[2])?)?;
+    let sm = get_int(&evaluate_exp(interpreter, &params[3])?)?;
     interpreter.io.fopen(channel, file, am, sm);
     Ok(())
 }
 
 pub fn fappend(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?)? as usize;
     let file = &evaluate_exp(interpreter, &params[1])?.to_string();
-    let am = get_int(&evaluate_exp(interpreter, &params[2])?);
-    let sm = get_int(&evaluate_exp(interpreter, &params[3])?);
+    let am = get_int(&evaluate_exp(interpreter, &params[2])?)?;
+    let sm = get_int(&evaluate_exp(interpreter, &params[3])?)?;
     interpreter.io.fappend(channel, file, am, sm);
     Ok(())
 }
 
 pub fn fclose(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-    let channel = get_int(&evaluate_exp(interpreter, &params[0])?);
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?)?;
     if channel == -1 {
         // READLINE uses -1 as a special value
         return Ok(());
@@ -84,7 +84,7 @@ pub fn fclose(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
 }
 
 pub fn fget(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?)? as usize;
     let value = VariableValue::String(interpreter.io.fget(channel));
     let var_name = get_var_name(&params[1]);
     let var_type = interpreter.prg.get_var_type(&var_name);
@@ -98,7 +98,7 @@ pub fn fget(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
 }
 
 pub fn fput(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?)? as usize;
 
     for expr in &params[1..] {
         let value = evaluate_exp(interpreter, expr)?;
@@ -108,7 +108,7 @@ pub fn fput(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
 }
 
 pub fn fputln(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-    let channel = get_int(&evaluate_exp(interpreter, &params[0])?) as usize;
+    let channel = get_int(&evaluate_exp(interpreter, &params[0])?)? as usize;
 
     for expr in &params[1..] {
         let value = evaluate_exp(interpreter, expr)?;
@@ -130,12 +130,44 @@ pub fn fputpad(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn hangup(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn getuser(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn getuser(interpreter: &mut Interpreter) -> Res<()> {
+    interpreter.current_user = Some(interpreter.pcb_data.users[interpreter.cur_user].clone());
+    interpreter.cur_frame.last_mut().unwrap().values.insert(
+        "U_PAGELEN".to_string(),
+        VariableValue::Integer(interpreter.pcb_data.users[interpreter.cur_user].page_len),
+    );
+    interpreter.cur_frame.last_mut().unwrap().values.insert(
+        "U_PWD".to_string(),
+        VariableValue::String(
+            interpreter.pcb_data.users[interpreter.cur_user]
+                .password
+                .clone(),
+        ),
+    );
+    interpreter.cur_frame.last_mut().unwrap().values.insert(
+        "U_PWDEXP".to_string(),
+        VariableValue::Date(0000), // TODO
+    );
+    interpreter.cur_frame.last_mut().unwrap().values.insert(
+        "U_SCROLL".to_string(),
+        VariableValue::Boolean(interpreter.pcb_data.users[interpreter.cur_user].scroll_flag),
+    );
+    interpreter.cur_frame.last_mut().unwrap().values.insert(
+        "U_SEC".to_string(),
+        VariableValue::Integer(interpreter.pcb_data.users[interpreter.cur_user].security_level),
+    );
+
+    Ok(())
 }
-pub fn putuser(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn putuser(interpreter: &mut Interpreter) -> Res<()> {
+    if let Some(user) = interpreter.current_user.take() {
+        interpreter.pcb_data.users[interpreter.cur_user] = user;
+    }
+    Ok(())
 }
+
 pub fn defcolor(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
@@ -192,7 +224,7 @@ pub fn cdchkoff(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 
 pub fn delay(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     // 1 tick is ~1/18.2s
-    let ticks = get_int(&evaluate_exp(interpreter, &params[0])?);
+    let ticks = get_int(&evaluate_exp(interpreter, &params[0])?)?;
     if ticks > 0 {
         thread::sleep(Duration::from_millis((ticks as f32 * 1000.0 / 18.2) as u64));
     }
@@ -247,7 +279,7 @@ pub fn pop(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 }
 pub fn kbdstuff(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     let value = evaluate_exp(interpreter, &params[0])?;
-    interpreter.ctx.send_to_com(&get_string(&value))
+    interpreter.ctx.print(&get_string(&value))
 }
 pub fn call(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
@@ -292,12 +324,38 @@ pub fn dispstr(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> 
     let value = evaluate_exp(interpreter, &params[0])?;
     interpreter.ctx.print(&get_string(&value))
 }
-pub fn rdunet(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn rdunet(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let value = evaluate_exp(interpreter, &params[0])?;
+
+    if let VariableValue::Integer(value) = value {
+        if let Some(node) = interpreter.pcb_data.nodes.get(value as usize) {
+            interpreter.pcb_node = Some(node.clone());
+        }
+    }
+    Ok(())
 }
-pub fn wrunet(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn wrunet(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let node = get_int(&evaluate_exp(interpreter, &params[0])?)?;
+    let stat = get_string(&evaluate_exp(interpreter, &params[1])?);
+    let name = get_string(&evaluate_exp(interpreter, &params[2])?);
+    let city = get_string(&evaluate_exp(interpreter, &params[3])?);
+    let operation = get_string(&evaluate_exp(interpreter, &params[4])?);
+    let broadcast = get_string(&evaluate_exp(interpreter, &params[5])?);
+
+    // Todo: Broadcast
+
+    if !stat.is_empty() {
+        interpreter.pcb_data.nodes[node as usize].status = stat.as_bytes()[0] as char;
+    }
+    interpreter.pcb_data.nodes[node as usize].name = name;
+    interpreter.pcb_data.nodes[node as usize].city = city;
+    interpreter.pcb_data.nodes[node as usize].operation = operation;
+
+    Ok(())
 }
+
 pub fn dointr(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
@@ -318,8 +376,8 @@ pub fn varaddr(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 }
 
 pub fn ansipos(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
-    let x = get_int(&evaluate_exp(interpreter, &params[0])?) - 1;
-    let y = get_int(&evaluate_exp(interpreter, &params[1])?) - 1;
+    let x = get_int(&evaluate_exp(interpreter, &params[0])?)? - 1;
+    let y = get_int(&evaluate_exp(interpreter, &params[1])?)? - 1;
 
     interpreter.ctx.gotoxy(x, y)
 }
@@ -454,13 +512,16 @@ pub fn copy(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
 pub fn kbdflush(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+    // TODO?
+    Ok(())
 }
 pub fn mdmflush(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+    // TODO?
+    Ok(())
 }
 pub fn keyflush(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+    // TODO?
+    Ok(())
 }
 pub fn lastin(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")

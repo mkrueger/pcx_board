@@ -1,21 +1,23 @@
 use std::{
+    backtrace::Backtrace,
     collections::VecDeque,
     fs::File,
     io::Read,
     net::{TcpListener, TcpStream},
+    path::Path,
     thread,
     time::{Duration, SystemTime},
 };
 
 mod ppe;
-use icy_engine::BufferParser;
+use icy_engine::{ansi::constants::COLOR_OFFSETS, BufferParser};
 pub use ppe::*;
 mod raw;
 pub use raw::*;
 mod pcb_parser;
 pub use pcb_parser::*;
 
-use crate::data::PcbDataType;
+use crate::data::{IcyBoardData, Node, PcbDataType, UserRecord};
 pub mod data;
 
 pub struct Connection {
@@ -58,21 +60,138 @@ impl ExecutionContext for Connection {
     }
 
     fn print(&mut self, str: &str) -> Res<()> {
-        let mut v = Vec::new();
+        let mut v: Vec<u8> = Vec::new();
 
+        let mut state = 0;
+        let mut ch1 = 'A';
         for c in str.chars() {
-            self.vt
-                .buffer_parser
-                .print_char(&mut self.vt.buf, 0, &mut self.vt.caret, c);
-            self.pcb.print_char(&mut v, &mut self.vt.caret, c as u8);
-        }
+            match state {
+                0 => {
+                    if c == '@' {
+                        state = 1;
+                    } else {
+                        v.push(c as u8);
+                    }
+                }
+                1 => {
+                    if c == 'X' {
+                        state = 2;
+                    } else {
+                        v.push(b'@');
+                        v.push(c as u8);
+                        state = 0;
+                    }
+                }
+                2 => {
+                    if c.is_ascii_hexdigit() {
+                        state = 3;
+                    } else {
+                        v.push(b'@');
+                        v.push(c as u8);
+                        ch1 = c;
+                        state = 0;
+                    }
+                }
+                3 => {
+                    state = 0;
+                    if !c.is_ascii_hexdigit() {
+                        v.push(b'@');
+                        v.push(ch1 as u8);
+                        v.push(c as u8);
+                    } else {
+                        v.extend(b"\x1B[0;");
+                        let color =
+                            (c.to_digit(16).unwrap() << 4 | ch1.to_digit(16).unwrap()) as u8;
 
+                        let fg_color = COLOR_OFFSETS[color as usize & 0b0111] + 30;
+                        let bg_color = COLOR_OFFSETS[(color >> 4) as usize & 0b0111] + 40;
+
+                        if color & 0b1000 != 0 {
+                            v.extend(b"1;");
+                        }
+                        v.extend(fg_color.to_string().as_bytes());
+                        v.push(b';');
+
+                        v.extend(bg_color.to_string().as_bytes());
+
+                        v.push(b'm');
+                    }
+                }
+                _ => {
+                    state = 0;
+                }
+            }
+        }
         self.com.write(&v)?;
         Ok(())
     }
 
     fn write_raw(&mut self, data: &[u8]) -> Res<()> {
-        self.com.write(data)?;
+        let mut v: Vec<u8> = Vec::new();
+
+        let mut state = 0;
+        let mut ch1 = b'A';
+        for c in data {
+            let c = *c;
+            match state {
+                0 => {
+                    if c == b'@' {
+                        state = 1;
+                    } else {
+                        v.push(c);
+                    }
+                }
+                1 => {
+                    if c == b'X' {
+                        state = 2;
+                    } else {
+                        v.push(b'@');
+                        v.push(c);
+                        state = 0;
+                    }
+                }
+                2 => {
+                    if c.is_ascii_hexdigit() {
+                        state = 3;
+                    } else {
+                        v.push(b'@');
+                        v.push(c);
+                        ch1 = c;
+                        state = 0;
+                    }
+                }
+                3 => {
+                    state = 0;
+                    if !c.is_ascii_hexdigit() {
+                        v.push(b'@');
+                        v.push(ch1);
+                        v.push(c);
+                    } else {
+                        v.extend(b"\x1B[0;");
+                        let color = ((c as char).to_digit(16).unwrap() << 4
+                            | (ch1 as char).to_digit(16).unwrap())
+                            as u8;
+
+                        let fg_color = COLOR_OFFSETS[color as usize & 0b0111] + 30;
+                        let bg_color = COLOR_OFFSETS[(color >> 4) as usize & 0b0111] + 40;
+
+                        if color & 0b1000 != 0 {
+                            v.extend(b"1;");
+                        }
+                        v.extend(fg_color.to_string().as_bytes());
+                        v.push(b';');
+
+                        v.extend(bg_color.to_string().as_bytes());
+
+                        v.push(b'm');
+                    }
+                }
+                _ => {
+                    state = 0;
+                }
+            }
+        }
+        self.com.write(&v)?;
         Ok(())
     }
 
@@ -122,6 +241,8 @@ fn main() -> Res<()> {
         "music.ans",
     ];
 
+    let users = UserRecord::read_users(Path::new("/home/mkrueger/work/PCBoard/C/PCB/MAIN/USERS"))?;
+
     let mut files = Vec::new();
     for name in names {
         let mut fs = File::open(format!("./manual_tests/{}", name)).unwrap();
@@ -134,6 +255,7 @@ fn main() -> Res<()> {
         println!("incoming connection!");
         let stream = stream?;
         let files_copy = files.clone();
+        let users = users.clone();
         thread::spawn(move || {
             let mut i = 1;
             let mut connection = Connection::new(stream);
@@ -143,7 +265,11 @@ fn main() -> Res<()> {
             connection.write_raw(b"Press enter").unwrap();
 
             let mut st = SystemTime::now();
-            let mut pcb_data = PcbDataType::default();
+            let mut pcb_data = IcyBoardData {
+                users,
+                nodes: vec![Node::default()],
+                pcb_data: PcbDataType::default(),
+            };
             loop {
                 if st.elapsed().unwrap() > Duration::from_secs(30) {
                     break;

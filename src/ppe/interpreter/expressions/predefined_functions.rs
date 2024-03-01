@@ -1,10 +1,10 @@
 #![allow(clippy::needless_pass_by_value)]
-use std::ffi::OsStr;
 use std::fs::File;
+use std::{ffi::OsStr, path::Path};
 
 use super::super::errors::Error;
 use super::get_int;
-use crate::{Interpreter, Res};
+use crate::{get_string, Interpreter, Res};
 use easy_reader::EasyReader;
 use ppl_engine::ast::{convert_to, VariableType, VariableValue};
 use rand::Rng; // 0.8.5
@@ -47,11 +47,11 @@ pub fn upper(str: VariableValue) -> VariableValue {
 ///  * `chars` - An integer value with the number of chars to take from `str`
 /// # Returns
 ///  the substring of `str`, "" if chars <= 0, Will add padding up to the full length specified
-pub fn mid(str: VariableValue, pos: VariableValue, chars: VariableValue) -> VariableValue {
-    let mut pos = get_int(&pos) - 1; // 1 based
-    let mut chars = get_int(&chars);
+pub fn mid(str: VariableValue, pos: VariableValue, chars: VariableValue) -> Res<VariableValue> {
+    let mut pos = get_int(&pos)? - 1; // 1 based
+    let mut chars = get_int(&chars)?;
     if chars <= 0 {
-        return VariableValue::String(String::new());
+        return Ok(VariableValue::String(String::new()));
     }
 
     let mut res = String::new();
@@ -67,13 +67,13 @@ pub fn mid(str: VariableValue, pos: VariableValue, chars: VariableValue) -> Vari
                 .substring(pos as usize, (pos + chars) as usize),
         );
     }
-    VariableValue::String(res)
+    Ok(VariableValue::String(res))
 }
 
-pub fn left(str: VariableValue, chars: VariableValue) -> VariableValue {
-    let mut chars = get_int(&chars);
+pub fn left(str: VariableValue, chars: VariableValue) -> Res<VariableValue> {
+    let mut chars = get_int(&chars)?;
     if chars <= 0 {
-        return VariableValue::String(String::new());
+        return Ok(VariableValue::String(String::new()));
     }
 
     let mut res = String::new();
@@ -90,13 +90,13 @@ pub fn left(str: VariableValue, chars: VariableValue) -> VariableValue {
             }
         }
     }
-    VariableValue::String(res)
+    Ok(VariableValue::String(res))
 }
 
-pub fn right(str: VariableValue, chars: VariableValue) -> VariableValue {
-    let chars = get_int(&chars);
+pub fn right(str: VariableValue, chars: VariableValue) -> Res<VariableValue> {
+    let chars = get_int(&chars)?;
     if chars <= 0 {
-        return VariableValue::String(String::new());
+        return Ok(VariableValue::String(String::new()));
     }
     let mut chars = chars as usize;
 
@@ -109,41 +109,43 @@ pub fn right(str: VariableValue, chars: VariableValue) -> VariableValue {
         }
         res.push_str(str.substring(str.len() - chars, str.len()));
     }
-    VariableValue::String(res)
+    Ok(VariableValue::String(res))
 }
 
-pub fn space(chars: VariableValue) -> VariableValue {
-    let mut chars = get_int(&chars);
+pub fn space(chars: VariableValue) -> Res<VariableValue> {
+    let mut chars = get_int(&chars)?;
     if chars <= 0 {
-        return VariableValue::String(String::new());
+        return Ok(VariableValue::String(String::new()));
     }
     let mut res = String::new();
     while chars > 0 {
         res.push(' ');
         chars -= 1;
     }
-    VariableValue::String(res)
+    Ok(VariableValue::String(res))
 }
 
-pub fn ferr(interpreter: &mut Interpreter, channel: VariableValue) -> VariableValue {
-    let channel = get_int(&channel);
-    VariableValue::Boolean(interpreter.io.ferr(channel as usize))
+pub fn ferr(interpreter: &mut Interpreter, channel: VariableValue) -> Res<VariableValue> {
+    let channel = get_int(&channel)?;
+    Ok(VariableValue::Boolean(
+        interpreter.io.ferr(channel as usize),
+    ))
 }
 
-pub fn chr(chr: VariableValue) -> VariableValue {
-    let c = get_int(&chr);
+pub fn chr(chr: VariableValue) -> Res<VariableValue> {
+    let c = get_int(&chr)?;
     if c <= 0 {
-        return VariableValue::String(String::new());
+        return Ok(VariableValue::String(String::new()));
     }
     // undocumented: returns a space for c > 255
     if c > 255 {
-        return VariableValue::String(" ".to_string());
+        return Ok(VariableValue::String(" ".to_string()));
     }
     let mut res = String::new();
     unsafe {
         res.push(char::from_u32_unchecked(c as u32));
     }
-    VariableValue::String(res)
+    Ok(VariableValue::String(res))
 }
 
 pub fn asc(chr: VariableValue) -> VariableValue {
@@ -200,16 +202,48 @@ pub fn ltrim(str: VariableValue, ch: VariableValue) -> VariableValue {
 ///  * `str` - A string value
 ///  * `old` - A string with the old character
 ///  * `new` - A string with the new character
-pub fn replace(_str: VariableValue, _old: VariableValue, _new: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn replace(str: VariableValue, old: VariableValue, new: VariableValue) -> VariableValue {
+    let VariableValue::String(str) = str else {
+        return VariableValue::String(String::new());
+    };
+    let VariableValue::String(old) = old else {
+        return VariableValue::String(String::new());
+    };
+    let VariableValue::String(new) = new else {
+        return VariableValue::String(String::new());
+    };
+    let mut res = String::new();
+    let old = old.chars().next().unwrap();
+    let new = new.chars().next().unwrap();
+    for c in str.chars() {
+        if c == old {
+            res.push(new);
+        } else {
+            res.push(c);
+        }
+    }
+    VariableValue::String(res)
 }
 
 /// Remove all occurences of a given character in a string
 /// # Arguments
 ///  * `str` - A string value
 ///  * `ch` - A string with the character to remove
-pub fn strip(_str: VariableValue, _ch: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn strip(str: VariableValue, ch: VariableValue) -> VariableValue {
+    let VariableValue::String(str) = str else {
+        return VariableValue::String(String::new());
+    };
+    let VariableValue::String(ch) = ch else {
+        return VariableValue::String(String::new());
+    };
+    let mut res = String::new();
+    let ch = ch.chars().next().unwrap();
+    for c in str.chars() {
+        if c != ch {
+            res.push(c);
+        }
+    }
+    VariableValue::String(res)
 }
 
 /// Remove @X codes from a string
@@ -217,8 +251,55 @@ pub fn strip(_str: VariableValue, _ch: VariableValue) -> VariableValue {
 ///  * `str` - A string value
 /// # Returns
 /// A string without any @X codes
-pub fn strip_atx(_str: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn strip_atx(str: VariableValue) -> VariableValue {
+    let VariableValue::String(str) = str else {
+        return VariableValue::String(String::new());
+    };
+    let mut res = String::new();
+    let mut state = 0;
+    let mut ch1 = 'A';
+    for c in str.chars() {
+        match state {
+            0 => {
+                if c == '@' {
+                    state = 1;
+                } else {
+                    res.push(c);
+                }
+            }
+            1 => {
+                if c == 'X' {
+                    state = 2;
+                } else {
+                    res.push('@');
+                    res.push(c);
+                    state = 0;
+                }
+            }
+            2 => {
+                if c.is_ascii_hexdigit() {
+                    state = 3;
+                } else {
+                    res.push('@');
+                    res.push(c);
+                    ch1 = c;
+                    state = 0;
+                }
+            }
+            3 => {
+                state = 0;
+                if !c.is_ascii_hexdigit() {
+                    res.push('@');
+                    res.push(ch1);
+                    res.push(c);
+                }
+            }
+            _ => {
+                state = 0;
+            }
+        }
+    }
+    VariableValue::String(res)
 }
 
 pub fn replace_string(
@@ -267,14 +348,14 @@ pub fn trim(str: VariableValue, ch: VariableValue) -> VariableValue {
     VariableValue::String(res.trim_matches(pat).to_string())
 }
 
-pub fn random(upper: VariableValue) -> VariableValue {
-    let upper = get_int(&upper);
+pub fn random(upper: VariableValue) -> Res<VariableValue> {
+    let upper = get_int(&upper)?;
     if upper <= 0 {
-        return VariableValue::Integer(0);
+        return Ok(VariableValue::Integer(0));
     }
 
     let mut rng = rand::thread_rng();
-    VariableValue::Integer(rng.gen_range(0..upper))
+    Ok(VariableValue::Integer(rng.gen_range(0..upper)))
 }
 
 pub fn date() -> VariableValue {
@@ -286,8 +367,13 @@ pub fn time() -> VariableValue {
 }
 
 pub fn u_name(interpreter: &Interpreter) -> VariableValue {
-    panic!("TODO") // TODO
+    VariableValue::String(
+        interpreter.pcb_data.users[interpreter.cur_user]
+            .name
+            .clone(),
+    )
 }
+
 pub fn u_ldate(interpreter: &Interpreter) -> VariableValue {
     panic!("TODO") // TODO
 }
@@ -417,7 +503,7 @@ pub fn valtime(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
 pub fn pcbnode(interpreter: &Interpreter) -> VariableValue {
-    VariableValue::Integer(interpreter.pcb_data.node_number)
+    VariableValue::Integer(interpreter.pcb_data.pcb_data.node_number as i32)
 }
 
 pub fn readline(
@@ -442,30 +528,49 @@ pub fn readline(
     ))
 }
 
-pub fn sysopsec(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn sysopsec(interpreter: &Interpreter) -> VariableValue {
+    VariableValue::Integer(interpreter.pcb_data.pcb_data.sysop_sec)
 }
-pub fn onlocal(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn onlocal(interpreter: &Interpreter) -> VariableValue {
+    // TODO: OnLocal should return true if the user is local, false otherwise
+    VariableValue::Boolean(true)
 }
-pub fn un_stat(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+
+pub fn un_stat(interpreter: &Interpreter) -> VariableValue {
+    if let Some(node) = &interpreter.pcb_node {
+        VariableValue::Integer(node.status as i32)
+    } else {
+        VariableValue::Integer(0)
+    }
 }
-pub fn un_name(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+
+pub fn un_name(interpreter: &Interpreter) -> VariableValue {
+    if let Some(node) = &interpreter.pcb_node {
+        VariableValue::String(node.name.clone())
+    } else {
+        VariableValue::String(String::new())
+    }
 }
-pub fn un_city(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn un_city(interpreter: &Interpreter) -> VariableValue {
+    if let Some(node) = &interpreter.pcb_node {
+        VariableValue::String(node.city.clone())
+    } else {
+        VariableValue::String(String::new())
+    }
 }
-pub fn un_oper(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn un_oper(interpreter: &Interpreter) -> VariableValue {
+    if let Some(node) = &interpreter.pcb_node {
+        VariableValue::String(node.operation.clone())
+    } else {
+        VariableValue::String(String::new())
+    }
 }
 pub fn cursec(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
 
 pub fn gettoken(interpreter: &mut Interpreter) -> VariableValue {
-    if interpreter.cur_tokens.len() > 0 {
+    if !interpreter.cur_tokens.is_empty() {
         VariableValue::String(interpreter.cur_tokens.remove(0))
     } else {
         VariableValue::String(String::new())
@@ -549,8 +654,12 @@ pub fn peekw(_x: VariableValue) -> VariableValue {
 pub fn mkaddr(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn exist(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn exist(x: VariableValue) -> VariableValue {
+    if let VariableValue::String(file) = x {
+        VariableValue::Boolean(Path::new(&file).exists())
+    } else {
+        VariableValue::Boolean(false)
+    }
 }
 pub fn i2s(_x: VariableValue) -> VariableValue {
     panic!("TODO")
@@ -621,25 +730,25 @@ pub fn u_stat(_x: VariableValue) -> VariableValue {
 pub fn defcolor(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn abs(x: VariableValue) -> VariableValue {
+pub fn abs(x: VariableValue) -> Res<VariableValue> {
     match x {
         VariableValue::Boolean(_)
         | VariableValue::Integer(_)
         | VariableValue::Date(_)
         | VariableValue::Money(_)
         | VariableValue::EDate(_)
-        | VariableValue::Time(_) => VariableValue::Integer(get_int(&x).abs()),
-        VariableValue::Word(_) | VariableValue::Unsigned(_) | VariableValue::Byte(_) => x,
+        | VariableValue::Time(_) => Ok(VariableValue::Integer(get_int(&x)?.abs())),
+        VariableValue::Word(_) | VariableValue::Unsigned(_) | VariableValue::Byte(_) => Ok(x),
 
-        VariableValue::SByte(i) => VariableValue::SByte(i.abs()),
-        VariableValue::SWord(i) => VariableValue::SWord(i.abs()),
+        VariableValue::SByte(i) => Ok(VariableValue::SByte(i.abs())),
+        VariableValue::SWord(i) => Ok(VariableValue::SWord(i.abs())),
 
-        VariableValue::Real(r) => VariableValue::Real(r.abs()),
+        VariableValue::Real(r) => Ok(VariableValue::Real(r.abs())),
 
         VariableValue::String(_) => abs(convert_to(VariableType::Integer, &x)),
 
         VariableValue::Dim1(_, _) | VariableValue::Dim2(_, _) | VariableValue::Dim3(_, _) => {
-            panic!("not supported abs!!!")
+            Err(Box::new(Error::NotSupported))
         }
     }
 }
@@ -671,11 +780,11 @@ pub fn mkdate(_x: VariableValue) -> VariableValue {
 pub fn curcolor(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn kinkey(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn kinkey(interpreter: &mut Interpreter) -> Res<VariableValue> {
+    inkey(interpreter)
 }
-pub fn minkey(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn minkey(interpreter: &mut Interpreter) -> Res<VariableValue> {
+    inkey(interpreter)
 }
 pub fn maxnode(_x: VariableValue) -> VariableValue {
     panic!("TODO")
@@ -704,9 +813,22 @@ pub fn mgetbyte(_x: VariableValue) -> VariableValue {
 pub fn tokcount(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn u_recnum(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+
+pub fn u_recnum(interpreter: &mut Interpreter, user_name: VariableValue) -> Res<VariableValue> {
+    let user_name = get_string(&user_name);
+    let record_num = if let Some(idx) = interpreter
+        .pcb_data
+        .users
+        .iter()
+        .position(|x| x.name == user_name)
+    {
+        idx as i32
+    } else {
+        -1
+    };
+    Ok(VariableValue::Integer(record_num))
 }
+
 pub fn u_inconf(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
@@ -849,15 +971,18 @@ pub fn himsgnum(_x: VariableValue) -> VariableValue {
 pub fn drivespace(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn outbytes(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn outbytes() -> VariableValue {
+    VariableValue::Integer(0)
 }
 pub fn hiconfnum(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
+
 pub fn inbytes(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+    // TODO: Implement inbytes
+    VariableValue::Integer(0)
 }
+
 pub fn crc32(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
@@ -1049,8 +1174,8 @@ pub fn uselmrs(_x: VariableValue) -> VariableValue {
 pub fn confinfo(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn tinkey(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn tinkey(interpreter: &mut Interpreter) -> Res<VariableValue> {
+    inkey(interpreter)
 }
 pub fn cwd(_x: VariableValue) -> VariableValue {
     panic!("TODO")

@@ -50,7 +50,7 @@ pub fn call_predefined_procedure(
         OpCode::CONFUNFLAG => predefined_procedures::confunflag(interpreter, params),
         OpCode::DISPFILE => {
             let file = get_string(&evaluate_exp(interpreter, &params[0])?);
-            let flags = get_int(&evaluate_exp(interpreter, &params[1])?);
+            let flags = get_int(&evaluate_exp(interpreter, &params[1])?)?;
             predefined_procedures::dispfile(interpreter, file, flags)
         }
 
@@ -66,8 +66,8 @@ pub fn call_predefined_procedure(
         OpCode::STARTDISP => predefined_procedures::startdisp(interpreter, params),
         OpCode::FPUTPAD => predefined_procedures::fputpad(interpreter, params),
         OpCode::HANGUP => predefined_procedures::hangup(interpreter, params),
-        OpCode::GETUSER => predefined_procedures::getuser(interpreter, params),
-        OpCode::PUTUSER => predefined_procedures::putuser(interpreter, params),
+        OpCode::GETUSER => predefined_procedures::getuser(interpreter),
+        OpCode::PUTUSER => predefined_procedures::putuser(interpreter),
         OpCode::DEFCOLOR => predefined_procedures::defcolor(interpreter, params),
         OpCode::DELETE => predefined_procedures::delete(interpreter, params),
         OpCode::DELUSER => predefined_procedures::deluser(interpreter, params),
