@@ -6,8 +6,8 @@ use ppl_engine::{
 };
 
 use crate::{
-    errors::Error, ppe::interpreter::execute_statement, Interpreter, InterpreterError, Res,
-    StackFrame,
+    calc_table, errors::IcyError, ppe::interpreter::execute_statement, Interpreter,
+    InterpreterError, Res, StackFrame,
 };
 
 /// .
@@ -22,19 +22,23 @@ use crate::{
 /// # Panics
 ///
 /// Panics if .
-#[must_use]
 pub fn evaluate_exp(interpreter: &mut Interpreter, expr: &Expression) -> Res<VariableValue> {
     match expr {
         Expression::Identifier(str) => {
-            let res = interpreter
-                .cur_frame
-                .last()
-                .unwrap()
-                .values
-                .get(str)
-                .unwrap_or_else(|| panic!("variable {} not found", str))
-                .clone();
-            Ok(res)
+            for frame in interpreter.cur_frame.last().unwrap().values.iter() {
+                if frame.0 == str {
+                    return Ok(frame.1.clone());
+                }
+            }
+
+            if interpreter.cur_frame.len() > 1 {
+                for frame in interpreter.cur_frame[0].values.iter() {
+                    if frame.0 == str {
+                        return Ok(frame.1.clone());
+                    }
+                }
+            }
+            Err(Box::new(IcyError::VariableNotFound(str.clone())))
         }
         Expression::Const(constant) => match constant {
             Constant::Boolean(true) => Ok(VariableValue::Integer(PPL_TRUE)),
@@ -63,11 +67,13 @@ pub fn evaluate_exp(interpreter: &mut Interpreter, expr: &Expression) -> Res<Var
                     if name != pname {
                         continue;
                     }
+                    let label_table = calc_table(&f.block);
+
                     let mut prg_frame = StackFrame {
                         values: HashMap::new(),
                         gosub_stack: vec![],
                         cur_ptr: 0,
-                        label_table: 0,
+                        label_table,
                     };
 
                     for i in 0..parameters.len() {
@@ -86,8 +92,8 @@ pub fn evaluate_exp(interpreter: &mut Interpreter, expr: &Expression) -> Res<Var
                     interpreter.cur_frame.push(prg_frame);
 
                     while interpreter.cur_frame.last().unwrap().cur_ptr < f.block.statements.len() {
-                        let stmt = &f.block.statements
-                            [interpreter.cur_frame.last().unwrap().cur_ptr as usize];
+                        let stmt =
+                            &f.block.statements[interpreter.cur_frame.last().unwrap().cur_ptr];
                         execute_statement(interpreter, stmt)?;
                         interpreter.cur_frame.last_mut().unwrap().cur_ptr += 1;
                     }
@@ -189,10 +195,14 @@ pub fn evaluate_exp(interpreter: &mut Interpreter, expr: &Expression) -> Res<Var
                 let r = evaluate_exp(interpreter, r_value)?;
                 Ok(VariableValue::Boolean(l != r))
             }
-            BinOp::Or => evaluate_exp(interpreter, l_value).or(evaluate_exp(interpreter, r_value)),
-            BinOp::And => {
-                evaluate_exp(interpreter, l_value).and(evaluate_exp(interpreter, r_value))
-            }
+            BinOp::Or => Ok(VariableValue::Boolean(
+                evaluate_exp(interpreter, l_value)?.as_bool()
+                    || evaluate_exp(interpreter, r_value)?.as_bool(),
+            )),
+            BinOp::And => Ok(VariableValue::Boolean(
+                evaluate_exp(interpreter, l_value)?.as_bool()
+                    && evaluate_exp(interpreter, r_value)?.as_bool(),
+            )),
             BinOp::Lower => Ok(VariableValue::Boolean(
                 evaluate_exp(interpreter, l_value)? < evaluate_exp(interpreter, r_value)?,
             )),
@@ -213,7 +223,7 @@ pub fn get_int(val: &VariableValue) -> Res<i32> {
     if let VariableValue::Integer(i) = convert_to(VariableType::Integer, val) {
         Ok(i)
     } else {
-        Err(Box::new(Error::IntegerExpected(format!("{:?}", val))))
+        Err(Box::new(IcyError::IntegerExpected(format!("{:?}", val))))
     }
 }
 
@@ -473,9 +483,7 @@ fn call_function(
         }
         FuncOpCode::KINKEY => predefined_functions::kinkey(interpreter)?,
         FuncOpCode::MINKEY => predefined_functions::minkey(interpreter)?,
-        FuncOpCode::MAXNODE => {
-            predefined_functions::maxnode(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::MAXNODE => predefined_functions::maxnode(interpreter),
         FuncOpCode::SLPATH => predefined_functions::slpath(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::HELPPATH => {
             predefined_functions::helppath(evaluate_exp(interpreter, &params[0])?)
@@ -626,9 +634,7 @@ fn call_function(
         FuncOpCode::HICONFNUM => {
             predefined_functions::hiconfnum(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::INBYTES => {
-            predefined_functions::inbytes(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::INBYTES => predefined_functions::inbytes(interpreter),
         FuncOpCode::CRC32 => predefined_functions::crc32(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::PCBMAC => predefined_functions::pcbmac(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::ACTMSGNUM => {

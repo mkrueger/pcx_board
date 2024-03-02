@@ -8,6 +8,10 @@ use std::{
 
 use substring::Substring;
 
+const O_RD: i32 = 0;
+const O_RW: i32 = 2;
+const O_WR: i32 = 1;
+
 pub trait PCBoardIO {
     /// Open a file for append access
     /// channel - integer expression with the channel to use for the file
@@ -95,6 +99,8 @@ pub trait PCBoardIO {
 
 struct FileChannel {
     file: Option<Box<File>>,
+    reader: Option<BufReader<File>>,
+    _content: Vec<u8>,
     err: bool,
 }
 
@@ -102,6 +108,8 @@ impl FileChannel {
     fn new() -> Self {
         FileChannel {
             file: None,
+            reader: None,
+            _content: Vec::new(),
             err: false,
         }
     }
@@ -152,19 +160,22 @@ impl DiskIO {
 impl PCBoardIO for DiskIO {
     fn fappend(&mut self, channel: usize, file: &str, _am: i32, _sm: i32) {
         let file = OpenOptions::new()
-            .write(true)
             .append(true)
             .open(self.resolve_file_name(file));
         match file {
             Ok(handle) => {
                 self.channels[channel] = FileChannel {
                     file: Some(Box::new(handle)),
+                    reader: None,
+                    _content: Vec::new(),
                     err: false,
                 };
             }
             _ => {
                 self.channels[channel] = FileChannel {
                     file: None,
+                    reader: None,
+                    _content: Vec::new(),
                     err: true,
                 };
             }
@@ -177,30 +188,46 @@ impl PCBoardIO for DiskIO {
             Ok(handle) => {
                 self.channels[channel] = FileChannel {
                     file: Some(Box::new(handle)),
+                    reader: None,
+                    _content: Vec::new(),
                     err: false,
                 };
             }
             _ => {
                 self.channels[channel] = FileChannel {
                     file: None,
+                    reader: None,
+                    _content: Vec::new(),
                     err: true,
                 };
             }
         }
     }
 
-    fn fopen(&mut self, channel: usize, file: &str, _am: i32, _sm: i32) {
-        let file = File::open(self.resolve_file_name(file));
+    fn fopen(&mut self, channel: usize, file: &str, mode: i32, _sm: i32) {
+        let file = match mode {
+            O_RD => File::open(self.resolve_file_name(file)),
+            O_WR => File::create(self.resolve_file_name(file)),
+            O_RW => OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(self.resolve_file_name(file)),
+            _ => File::open(self.resolve_file_name(file)),
+        };
         match file {
             Ok(handle) => {
                 self.channels[channel] = FileChannel {
                     file: Some(Box::new(handle)),
+                    reader: None,
+                    _content: Vec::new(),
                     err: false,
                 };
             }
             _ => {
                 self.channels[channel] = FileChannel {
                     file: None,
+                    reader: None,
+                    _content: Vec::new(),
                     err: true,
                 };
             }
@@ -214,27 +241,32 @@ impl PCBoardIO for DiskIO {
     fn fput(&mut self, channel: usize, text: String) {
         match &mut self.channels[channel].file {
             Some(f) => {
-                f.write_all(text.as_bytes()).expect("i/o error");
+                let _ = f.write(text.as_bytes());
                 self.channels[channel].err = false;
             }
             _ => {
+                log::error!("channel {} not found", channel);
                 self.channels[channel].err = true;
             }
         }
     }
 
     fn fget(&mut self, channel: usize) -> String {
-        if let Some(f) = &mut self.channels[channel].file {
-            let mut reader = BufReader::new(&**f);
+        if let Some(f) = self.channels[channel].file.take() {
+            self.channels[channel].reader = Some(BufReader::new(*f));
+        }
+        if let Some(reader) = &mut self.channels[channel].reader {
             let mut line = String::new();
             if reader.read_line(&mut line).is_err() {
                 self.channels[channel].err = true;
                 String::new()
             } else {
                 self.channels[channel].err = false;
-                line
+                line.trim_end_matches(|c| c == '\r' || c == '\n')
+                    .to_string()
             }
         } else {
+            log::error!("no file!");
             self.channels[channel].err = true;
             String::new()
         }
@@ -257,6 +289,8 @@ impl PCBoardIO for DiskIO {
             Some(_) => {
                 self.channels[channel] = FileChannel {
                     file: None,
+                    reader: None,
+                    _content: Vec::new(),
                     err: false,
                 };
             }

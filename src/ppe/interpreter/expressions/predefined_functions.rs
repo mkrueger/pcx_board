@@ -1,8 +1,8 @@
 #![allow(clippy::needless_pass_by_value)]
 use std::fs::File;
-use std::{ffi::OsStr, path::Path};
+use std::path::Path;
 
-use super::super::errors::Error;
+use super::super::errors::IcyError;
 use super::get_int;
 use crate::{get_string, Interpreter, Res};
 use easy_reader::EasyReader;
@@ -375,11 +375,16 @@ pub fn u_name(interpreter: &Interpreter) -> VariableValue {
 }
 
 pub fn u_ldate(interpreter: &Interpreter) -> VariableValue {
-    panic!("TODO") // TODO
+    // interpreter.pcb_data.users[interpreter.cur_user].last_date_on
+    // TODO
+    VariableValue::Date(0)
 }
+
 pub fn u_ltime(interpreter: &Interpreter) -> VariableValue {
-    panic!("TODO") // TODO
+    // TODO
+    VariableValue::Time(0)
 }
+
 pub fn u_ldir(interpreter: &Interpreter) -> VariableValue {
     panic!("TODO") // TODO
 }
@@ -512,10 +517,10 @@ pub fn readline(
     line: VariableValue,
 ) -> Res<VariableValue> {
     let VariableValue::String(file_name) = file else {
-        return Err(Box::new(Error::ParameterStringExpected(0)));
+        return Err(Box::new(IcyError::ParameterStringExpected(0)));
     };
     let VariableValue::Integer(line) = line else {
-        return Err(Box::new(Error::ParameterIntegerExpected(1)));
+        return Err(Box::new(IcyError::ParameterIntegerExpected(1)));
     };
 
     let file = File::open(file_name)?;
@@ -748,7 +753,7 @@ pub fn abs(x: VariableValue) -> Res<VariableValue> {
         VariableValue::String(_) => abs(convert_to(VariableType::Integer, &x)),
 
         VariableValue::Dim1(_, _) | VariableValue::Dim2(_, _) | VariableValue::Dim3(_, _) => {
-            Err(Box::new(Error::NotSupported))
+            Err(Box::new(IcyError::NotSupported))
         }
     }
 }
@@ -786,8 +791,8 @@ pub fn kinkey(interpreter: &mut Interpreter) -> Res<VariableValue> {
 pub fn minkey(interpreter: &mut Interpreter) -> Res<VariableValue> {
     inkey(interpreter)
 }
-pub fn maxnode(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn maxnode(interpreter: &mut Interpreter) -> VariableValue {
+    VariableValue::Integer(interpreter.pcb_data.nodes.len() as i32)
 }
 pub fn slpath(_x: VariableValue) -> VariableValue {
     panic!("TODO")
@@ -978,9 +983,8 @@ pub fn hiconfnum(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
 
-pub fn inbytes(_x: VariableValue) -> VariableValue {
-    // TODO: Implement inbytes
-    VariableValue::Integer(0)
+pub fn inbytes(interpreter: &mut Interpreter) -> VariableValue {
+    VariableValue::Integer(interpreter.ctx.inbytes())
 }
 
 pub fn crc32(_x: VariableValue) -> VariableValue {

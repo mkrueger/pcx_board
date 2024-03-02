@@ -20,6 +20,12 @@ impl PCBoardParser {
     }
 }
 
+impl Default for PCBoardParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 const FG_TABLE: [&[u8; 2]; 8] = [b"30", b"34", b"32", b"36", b"31", b"35", b"33", b"37"];
 const BG_TABLE: [&[u8; 2]; 8] = [b"40", b"44", b"42", b"46", b"41", b"45", b"43", b"47"];
 

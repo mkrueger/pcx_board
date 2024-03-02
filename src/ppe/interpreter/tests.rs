@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod interpreter_tests {
     use crate::{data::IcyBoardData, VT};
 
     use ppl_engine::parser::parse_program;
@@ -35,7 +35,7 @@ mod tests {
             Ok(())
         }
 
-        fn write_raw(&mut self, data: &[u8]) -> Res<()> {
+        fn write_raw(&mut self, _data: &[u8]) -> Res<()> {
             Ok(())
         }
 
@@ -46,6 +46,11 @@ mod tests {
         fn read(&mut self) -> Res<String> {
             Ok(String::new())
         }
+        fn inbytes(&mut self) -> i32 {
+            0
+        }
+
+        fn set_color(&mut self, _color: u8) {}
     }
 
     #[test]
@@ -400,7 +405,7 @@ FCLOSE 1
         .unwrap();
         assert!(io.files.contains_key(r"C:\PCB\MAIN\PPE.LOG"));
         let content = io.files.get(r"C:\PCB\MAIN\PPE.LOG").unwrap();
-        assert!(*content == "Hello World".to_string());
+        assert!(content == "Hello World");
     }
 
     #[test]

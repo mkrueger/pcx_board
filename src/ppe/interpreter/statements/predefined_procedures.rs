@@ -1,6 +1,6 @@
 use std::{fs, thread, time::Duration};
 
-use super::super::errors::Error;
+use super::super::errors::IcyError;
 use crate::{evaluate_exp, get_int, get_string, Interpreter, Res};
 use ppl_engine::ast::*;
 
@@ -17,9 +17,13 @@ pub fn more(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn wait(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn color(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn color(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let color = get_int(&evaluate_exp(interpreter, &params[0])?)?;
+    interpreter.ctx.set_color(color as u8);
+    Ok(())
 }
+
 pub fn goto(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
@@ -77,7 +81,7 @@ pub fn fclose(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
         return Ok(());
     }
     if !(0..=7).contains(&channel) {
-        return Err(Box::new(Error::FileChannelOutOfBounds(channel)));
+        return Err(Box::new(IcyError::FileChannelOutOfBounds(channel)));
     }
     interpreter.io.fclose(channel as usize);
     Ok(())
@@ -132,32 +136,9 @@ pub fn hangup(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 }
 
 pub fn getuser(interpreter: &mut Interpreter) -> Res<()> {
-    interpreter.current_user = Some(interpreter.pcb_data.users[interpreter.cur_user].clone());
-    interpreter.cur_frame.last_mut().unwrap().values.insert(
-        "U_PAGELEN".to_string(),
-        VariableValue::Integer(interpreter.pcb_data.users[interpreter.cur_user].page_len),
-    );
-    interpreter.cur_frame.last_mut().unwrap().values.insert(
-        "U_PWD".to_string(),
-        VariableValue::String(
-            interpreter.pcb_data.users[interpreter.cur_user]
-                .password
-                .clone(),
-        ),
-    );
-    interpreter.cur_frame.last_mut().unwrap().values.insert(
-        "U_PWDEXP".to_string(),
-        VariableValue::Date(0000), // TODO
-    );
-    interpreter.cur_frame.last_mut().unwrap().values.insert(
-        "U_SCROLL".to_string(),
-        VariableValue::Boolean(interpreter.pcb_data.users[interpreter.cur_user].scroll_flag),
-    );
-    interpreter.cur_frame.last_mut().unwrap().values.insert(
-        "U_SEC".to_string(),
-        VariableValue::Integer(interpreter.pcb_data.users[interpreter.cur_user].security_level),
-    );
-
+    let user = interpreter.pcb_data.users[interpreter.cur_user].clone();
+    interpreter.set_user_variables(&user);
+    interpreter.current_user = Some(user);
     Ok(())
 }
 
@@ -305,9 +286,28 @@ pub fn bye(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn goodbye(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn broadcast(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+/// Broadcast a single line message to a range of nodes.
+/// # Arguments
+///  * `lonode` - The low node number to which the message should be broadcast.
+///  * `hinode` - The high node number to which the message should be broadcast.
+///  * `message` - The message text which should be broadcast to the specified nodes.
+/// # Remarks
+/// This statement allows you to programatically broadcast a message to a range of nodes
+/// without giving users the ability to manually broadcast
+/// at any time they choose.
+pub fn broadcast(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let lonode = get_int(&evaluate_exp(interpreter, &params[0])?)?;
+    let hinode = get_int(&evaluate_exp(interpreter, &params[1])?)?;
+    let message = get_string(&evaluate_exp(interpreter, &params[2])?);
+    // TODO: Broadcast
+    println!(
+        "Broadcasting message from {} to {}: {}",
+        lonode, hinode, message
+    );
+    Ok(())
 }
+
 pub fn waitfor(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
@@ -378,7 +378,6 @@ pub fn varaddr(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn ansipos(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     let x = get_int(&evaluate_exp(interpreter, &params[0])?)? - 1;
     let y = get_int(&evaluate_exp(interpreter, &params[1])?)? - 1;
-
     interpreter.ctx.gotoxy(x, y)
 }
 
@@ -421,18 +420,41 @@ pub fn sound(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn chat(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn sprint(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn sprint(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    for expr in params {
+        let value = evaluate_exp(interpreter, expr)?;
+        print!("{}", &value.to_string());
+    }
+    Ok(())
 }
-pub fn sprintln(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn sprintln(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    for expr in params {
+        let value = evaluate_exp(interpreter, expr)?;
+        print!("{}", &value.to_string());
+    }
+    println!();
+    Ok(())
 }
-pub fn mprint(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn mprint(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    for expr in params {
+        let value = evaluate_exp(interpreter, expr)?;
+        interpreter.ctx.print(&value.to_string())?;
+    }
+    Ok(())
 }
-pub fn mprintln(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn mprintln(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    for expr in params {
+        let value = evaluate_exp(interpreter, expr)?;
+        interpreter.ctx.print(&value.to_string())?;
+    }
+    interpreter.ctx.print("\n")?;
+    Ok(())
 }
+
 pub fn rename(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
@@ -535,9 +557,14 @@ pub fn download(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn wrusysdoor(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn getaltuser(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn getaltuser(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let user_record = get_int(&evaluate_exp(interpreter, &params[0])?)? as usize;
+    let user = interpreter.pcb_data.users[user_record].clone();
+    interpreter.set_user_variables(&user);
+    Ok(())
 }
+
 pub fn adjdbytes(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }

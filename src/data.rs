@@ -1,5 +1,5 @@
 use std::{
-    fs,
+    fs::{self},
     io::{Cursor, Read},
     path::Path,
 };
@@ -27,6 +27,17 @@ pub struct PcbDataType {
     pub node_number: usize,
 }
 
+/*
+impl PcbDataType {
+    pub fn load(filename: &str) -> Res<Self> {
+        read_to_string(filename)?.lines()
+
+        for line in  {
+            result.push(line.to_string())
+        }
+    }
+}
+*/
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct UserRecord {
     pub name: String,
@@ -107,7 +118,6 @@ impl UserRecord {
         let mut cursor = Cursor::new(data);
         const RECORD_SIZE: u64 = 0x190;
         while cursor.position() + RECORD_SIZE <= cursor.get_ref().len() as u64 {
-            println!("pos: {} - {} ", cursor.position(), cursor.get_ref().len());
             let mut name = [0u8; 25];
             cursor.read_exact(&mut name)?;
 

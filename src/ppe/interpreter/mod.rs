@@ -7,7 +7,6 @@ use ppl_engine::tables::PPL_TRUE;
 
 use crate::data::IcyBoardData;
 use crate::data::Node;
-use crate::data::PcbDataType;
 use crate::data::UserRecord;
 use crate::Res;
 use crate::VT;
@@ -31,6 +30,8 @@ pub trait ExecutionContext {
     fn write_raw(&mut self, data: &[u8]) -> Res<()>;
     fn read(&mut self) -> Res<String>;
     fn get_char(&mut self) -> Res<Option<char>>;
+    fn inbytes(&mut self) -> i32;
+    fn set_color(&mut self, color: u8);
 
     /// simulate user input for later processing
     fn send_to_com(&mut self, data: &str) -> Res<()>;
@@ -41,14 +42,22 @@ pub struct StackFrame {
 
     gosub_stack: Vec<usize>,
     cur_ptr: usize,
-    label_table: i32,
+    label_table: HashMap<String, usize>,
 }
 
+pub fn calc_table(blk: &Block) -> HashMap<String, usize> {
+    let mut res = HashMap::new();
+    for i in 0..blk.statements.len() {
+        if let Statement::Label(label) = &blk.statements[i] {
+            res.insert(label.clone(), i);
+        }
+    }
+    res
+}
 pub struct Interpreter<'a> {
     prg: &'a Program,
     ctx: &'a mut dyn ExecutionContext,
     // lookup: HashMap<&'a Block, i32>,
-    label_tables: Vec<HashMap<String, usize>>,
     cur_frame: Vec<StackFrame>,
     io: &'a mut dyn PCBoardIO,
     pub is_running: bool,
@@ -59,6 +68,49 @@ pub struct Interpreter<'a> {
     pub pcb_node: Option<Node>,
 
     pub cur_tokens: Vec<String>, //  stack_frames: Vec<StackFrame>
+}
+
+impl<'a> Interpreter<'a> {
+    fn set_user_variables(&mut self, cur_user: &UserRecord) {
+        self.cur_frame[0].values.insert(
+            "self".to_string(),
+            VariableValue::Integer(cur_user.page_len),
+        );
+        self.cur_frame[0].values.insert(
+            "U_PWD".to_string(),
+            VariableValue::String(cur_user.password.clone()),
+        );
+        self.cur_frame[0].values.insert(
+            "U_PWDEXP".to_string(),
+            VariableValue::Date(0000), // TODO
+        );
+        self.cur_frame[0].values.insert(
+            "U_SCROLL".to_string(),
+            VariableValue::Boolean(cur_user.scroll_flag),
+        );
+        self.cur_frame[0].values.insert(
+            "U_SEC".to_string(),
+            VariableValue::Integer(cur_user.security_level),
+        );
+        self.cur_frame[0].values.insert(
+            "U_CITY".to_string(),
+            VariableValue::String(cur_user.city.clone()),
+        );
+        self.cur_frame[0].values.insert(
+            "U_ADDR".to_string(),
+            VariableValue::Dim1(
+                VariableType::String,
+                vec![
+                    VariableValue::String("Address Line 1".to_string()),
+                    VariableValue::String("Address Line 2".to_string()),
+                    VariableValue::String(cur_user.city.clone()),
+                    VariableValue::String("State".to_string()),
+                    VariableValue::String("ZIP Code".to_string()),
+                    VariableValue::String("Country".to_string()),
+                ],
+            ),
+        );
+    }
 }
 
 pub fn create_array(
@@ -107,8 +159,6 @@ pub fn get_first_index(var_info: &VarInfo) -> &Expression {
 }
 
 fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()> {
-    // println!("execute {:?}", &stmt);
-
     match stmt {
         Statement::Let(variable, expr) => {
             let value = evaluate_exp(interpreter, expr)?;
@@ -155,35 +205,32 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
             }
         }
         Statement::Goto(label) => {
-            let table = &interpreter.label_tables
-                [interpreter.cur_frame.last().unwrap().label_table as usize];
-            interpreter.cur_frame.last_mut().unwrap().cur_ptr = *table.get(label).unwrap();
+            if let Some(frame) = interpreter.cur_frame.last_mut() {
+                let Some(label_ptr) = frame.label_table.get(label) else {
+                    panic!("label not found {}", label);
+                };
+                frame.cur_ptr = *label_ptr;
+            }
         }
 
         Statement::Gosub(label) => {
-            let table = &interpreter.label_tables
-                [interpreter.cur_frame.last().unwrap().label_table as usize];
-
-            let ptr = interpreter.cur_frame.last_mut().unwrap().cur_ptr;
-            interpreter
-                .cur_frame
-                .last_mut()
-                .unwrap()
-                .gosub_stack
-                .push(ptr);
-            interpreter.cur_frame.last_mut().unwrap().cur_ptr = *table.get(label).unwrap();
+            if let Some(frame) = interpreter.cur_frame.last_mut() {
+                let Some(label_ptr) = frame.label_table.get(label) else {
+                    panic!("label not found {}", label);
+                };
+                frame.gosub_stack.push(frame.cur_ptr);
+                frame.cur_ptr = *label_ptr;
+            }
         }
         Statement::Return => {
-            let table = &interpreter.label_tables
-                [interpreter.cur_frame.last().unwrap().label_table as usize];
+            //let table = &interpreter.label_tables[interpreter.cur_frame.last().unwrap().label_table as usize];
             interpreter.cur_frame.last_mut().unwrap().cur_ptr = interpreter
                 .cur_frame
                 .last_mut()
                 .unwrap()
                 .gosub_stack
                 .pop()
-                .unwrap()
-                + 1;
+                .unwrap();
         }
 
         Statement::Call(def, params) => {
@@ -196,11 +243,12 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
                     if name != pname {
                         continue;
                     }
+                    let label_table = calc_table(&f.block);
                     let mut prg_frame = StackFrame {
                         values: HashMap::new(),
                         gosub_stack: Vec::new(),
                         cur_ptr: 0,
-                        label_table: 0,
+                        label_table,
                     };
 
                     for i in 0..parameters.len() {
@@ -217,8 +265,8 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
                     interpreter.cur_frame.push(prg_frame);
 
                     while interpreter.cur_frame.last().unwrap().cur_ptr < f.block.statements.len() {
-                        let stmt = &f.block.statements
-                            [interpreter.cur_frame.last().unwrap().cur_ptr as usize];
+                        let stmt =
+                            &f.block.statements[interpreter.cur_frame.last().unwrap().cur_ptr];
                         execute_statement(interpreter, stmt)?;
                         interpreter.cur_frame.last_mut().unwrap().cur_ptr += 1;
                     }
@@ -232,6 +280,9 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
             }
         }
 
+        Statement::End => {
+            interpreter.cur_frame.last_mut().unwrap().cur_ptr = usize::MAX - 1;
+        }
         Statement::If(cond, statement) => {
             let value = evaluate_exp(interpreter, cond)?;
             if let VariableValue::Integer(x) = value {
@@ -291,9 +342,6 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
 
         // nop statements
         Statement::Label(_) | Statement::Comment(_) => { /* skip */ }
-        Statement::End => {
-            interpreter.is_running = true;
-        }
 
         _ => {
             panic!("unsupported statement {:?}", stmt);
@@ -302,36 +350,74 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
     Ok(())
 }
 
-fn calc_table(blk: &Block) -> HashMap<String, usize> {
-    let mut res = HashMap::new();
-
-    for i in 0..blk.statements.len() {
-        if let Statement::Label(label) = &blk.statements[i] {
-            res.insert(label.clone(), i);
-        }
-    }
-
-    res
-}
-
 pub fn run(
     prg: &Program,
     ctx: &mut dyn ExecutionContext,
     io: &mut dyn PCBoardIO,
     pcb_data: &IcyBoardData,
 ) -> Res<bool> {
-    let cur_frame = StackFrame {
+    let label_table = calc_table(&prg.main_block);
+    let mut cur_frame = StackFrame {
         values: HashMap::new(),
         gosub_stack: Vec::new(),
         cur_ptr: 0,
-        label_table: 0,
+        label_table,
     };
+
+    for decl in &prg.declarations {
+        if let Declaration::Variable(var_type, name) = decl {
+            let var = match var_type {
+                VariableType::Integer => VariableValue::Integer(0),
+                VariableType::String => VariableValue::String("".to_string()),
+                VariableType::Boolean => VariableValue::Boolean(false),
+                VariableType::Date => VariableValue::Date(0),
+
+                VariableType::Unsigned => VariableValue::Unsigned(0),
+                VariableType::EDate => VariableValue::Date(0),
+                VariableType::Money => VariableValue::Money(0.0),
+                VariableType::Real => VariableValue::Real(0.0),
+                VariableType::Time => VariableValue::Time(0),
+                VariableType::Byte => VariableValue::Byte(0),
+                VariableType::Word => VariableValue::Word(0),
+                VariableType::SByte => VariableValue::SByte(0),
+                VariableType::SWord => VariableValue::SWord(0),
+                VariableType::BigStr => VariableValue::String("".to_string()),
+                VariableType::Double => VariableValue::Real(0.0),
+                VariableType::Function => todo!(),
+                VariableType::Procedure => todo!(),
+                VariableType::DDate => VariableValue::Date(0),
+                VariableType::Unknown => todo!(),
+            };
+            for name in name {
+                match name {
+                    VarInfo::Var0(name) => {
+                        cur_frame.values.insert(name.clone(), var.clone());
+                    }
+                    VarInfo::Var1(name, _expression) => {
+                        cur_frame.values.insert(
+                            name.clone(),
+                            VariableValue::Dim1(*var_type, vec![var.clone(); 50]),
+                        );
+                    }
+                    VarInfo::Var2(name, _expression1, _expression2) => {
+                        cur_frame
+                            .values
+                            .insert(name.clone(), VariableValue::Dim2(*var_type, Vec::new()));
+                    }
+                    VarInfo::Var3(name, _expression1, _expression2, _expression3) => {
+                        cur_frame
+                            .values
+                            .insert(name.clone(), VariableValue::Dim3(*var_type, Vec::new()));
+                    }
+                }
+            }
+        }
+    }
 
     let mut interpreter = Interpreter {
         prg,
         ctx,
         // lookup: HashMap::new(),
-        label_tables: Vec::new(),
         cur_frame: vec![cur_frame],
         io,
         is_running: true,
@@ -343,7 +429,6 @@ pub fn run(
         //  stack_frames: vec![]
     };
 
-    interpreter.label_tables.push(calc_table(&prg.main_block));
     //nterpreter.lookup.insert(&prg.main_block, 0);
 
     while interpreter.is_running

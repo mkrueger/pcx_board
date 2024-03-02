@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use icy_engine::{ansi, ascii, atascii, avatar, petscii, viewdata, BufferParser};
+use icy_engine::avatar;
 use icy_engine::{Buffer, Caret, Position};
 
 mod interpreter;
@@ -52,5 +52,11 @@ impl VT {
             buffer_parser: avatar::Parser::default(),
             caret: Caret::new(Position::new(0, 0)),
         }
+    }
+}
+
+impl Default for VT {
+    fn default() -> Self {
+        Self::new()
     }
 }

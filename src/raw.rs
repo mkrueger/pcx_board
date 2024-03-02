@@ -25,7 +25,7 @@ impl RawCom {
         })
     }
 
-    fn fill_buffer(&mut self) -> io::Result<()> {
+    pub fn fill_buffer(&mut self) -> io::Result<()> {
         let mut buf = [0; 1024 * 8];
         match self.tcp_stream.read(&mut buf) {
             Ok(size) => {
@@ -63,14 +63,14 @@ impl RawCom {
         if let Some(b) = self.buf.pop_front() {
             return Ok(b);
         }
-        return Err(io::Error::new(ErrorKind::TimedOut, "timed out"));
+        Err(io::Error::new(ErrorKind::TimedOut, "timed out"))
     }
 
     pub fn read_char_nonblocking(&mut self) -> io::Result<u8> {
         if let Some(b) = self.buf.pop_front() {
             return Ok(b);
         }
-        return Err(io::Error::new(ErrorKind::TimedOut, "no data avaliable"));
+        Err(io::Error::new(ErrorKind::TimedOut, "no data avaliable"))
     }
 
     pub fn read_exact(&mut self, duration: Duration, bytes: usize) -> io::Result<Vec<u8>> {
@@ -82,7 +82,7 @@ impl RawCom {
 
     pub fn is_data_available(&mut self) -> io::Result<bool> {
         self.fill_buffer()?;
-        Ok(self.buf.len() > 0)
+        Ok(!self.buf.is_empty())
     }
 
     pub fn disconnect(&mut self) -> io::Result<()> {
@@ -90,6 +90,9 @@ impl RawCom {
     }
 
     pub fn write(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.tcp_stream.write_all(&buf)
+        /*let e: Vec<u8> = buf.iter().map(|c| if *c == 27 { b'x' } else { *c }).collect();
+        println!("write_raw: {} {:?}", &String::from_utf8_lossy(e.as_slice()), buf);
+        println!("{}", std::backtrace::Backtrace::force_capture());*/
+        self.tcp_stream.write_all(buf)
     }
 }

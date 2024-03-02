@@ -1,8 +1,7 @@
-use ppl_engine::ast::VariableValue;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum IcyError {
     #[error("Parameter {0} should be from type String")]
     ParameterStringExpected(u32),
 
@@ -17,4 +16,7 @@ pub enum Error {
 
     #[error("not supported")]
     NotSupported,
+
+    #[error("Variable {0} not found.")]
+    VariableNotFound(String),
 }
