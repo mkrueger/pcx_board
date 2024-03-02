@@ -1,6 +1,6 @@
 use std::{
-    fs::{self},
-    io::{Cursor, Read},
+    fs::{self, File},
+    io::{BufRead, BufReader, Cursor, Read},
     path::Path,
 };
 
@@ -15,7 +15,10 @@ pub struct PcbDataType {
 
     // sysop display name
     pub sysop: String,
-    pub sysop_sec: i32,
+
+    pub sysop_security: SysopSecurity,
+
+    pub path: PcbPaths,
 
     // sysop local password
     pub password: String,
@@ -23,21 +26,214 @@ pub struct PcbDataType {
     // true if use sysop real name instead of 'SYSOP'
     pub use_real_name: bool,
 
+    pub use_local_graphics: bool,
+
     /// node number of this node
     pub node_number: usize,
 }
 
-/*
-impl PcbDataType {
-    pub fn load(filename: &str) -> Res<Self> {
-        read_to_string(filename)?.lines()
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SysopSecurity {
+    pub sysop: i32,
+    pub read_all_comments: i32,
+    pub read_all_mail: i32,
+    pub copy_move_messages: i32,
+    pub enter_at_vars_in_messages: i32,
+    pub edit_any_message: i32,
+    pub not_update_msg_read_status: i32,
+    pub use_broadcast_command: i32,
+    pub view_private_uploads: i32,
+    pub enter_generic_message: i32,
+    pub edit_message_headers: i32,
+    pub protect_unprotect_messages: i32,
+    pub overwrite_uploads: i32,
+    pub set_pack_out_date_on_messages: i32,
+    pub see_all_return_receipt_messages: i32,
+}
 
-        for line in  {
-            result.push(line.to_string())
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PcbPaths {
+    /// location of help files
+    help_loc: String,
+    /// location of security message files
+    sec_loc: String,
+    /// location of chat files
+    chat_loc: String,
+    /// location of pcbtext files
+    text_loc: String,
+    /// location of index files
+    index_loc: String,
+    /// location of temporary files
+    tmp_loc: String,
+    /// name of users file
+    usr_file: String,
+    /// name of users info file
+    inf_file: String,
+    /// name and location of callers file
+    clr_file: String,
+    /// name and location of conference data file
+    conference_file: String,
+    /// name and location of pwrd file
+    pwd_file: String,
+    /// name and location of fsec file
+    fsec_file: String,
+    /// name and location of upsec file
+    upsec_file: String,
+    /// name and location of tcan file
+    tcan_file: String,
+    /// name and location of welcome file
+    welcome_file: String,
+    /// name and location of newuser file
+    newuser_file: String,
+    /// name and location of closed file
+    closed_file: String,
+    /// name and location of warning file
+    warning_file: String,
+    /// name and location of expired file
+    expired_file: String,
+    /// name and location of USERNET.DAT file
+    usernet_file: String,
+    /// name and location of conference join menu
+    conf_menu: String,
+    /// name and location of newreg file questions
+    newreg_file: String,
+    /// name and location of non-reg user's answer file
+    answer_file: String,
+    /// name and location of protocol data file
+    protecol_data_file: String,
+    /// name and location of download summary file
+    download_file: String,
+    /// name and loc of logoff script questionnaire
+    logoff_script: String,
+    /// name and loc of logoff script answers
+    logoff_answer: String,
+    /// name and loc of pcbml.dat file
+    pcml_dat_file: String,
+    /// name and loc of group chat topic/intro file
+    group_chat: String,
+    /// name and loc of PCBFILER.DEF file
+    color_file: String,
+}
+
+impl PcbDataType {
+    pub fn load(filename: &str, c_drive: &str) -> Res<Self> {
+        let mut lines = Vec::new();
+        let reader = BufReader::new(File::open(filename)?);
+
+        for (i, line) in reader.lines().enumerate() {
+            if let Ok(line) = line {
+                lines.push(line);
+            } else {
+                log::warn!("Error reading line {}", i);
+                lines.push(String::new());
+            }
         }
+
+        const SYSOP_LEVEL_LINE: usize = 7;
+        const READ_ALL_COMMENTS_LINE: usize = 5;
+        const READ_ALL_MAIL_LINE: usize = 6;
+        const COPY_MOVE_MESSAGES_LINE: usize = 8;
+        const ENTER_AT_VARS_IN_MESSAGES_LINE: usize = 163;
+        const EDIT_ANY_MESSAGE_LINE: usize = 172;
+        const NOT_UPDATE_MSG_READ_STATUS_LINE: usize = 176;
+        const USE_BROADCAST_COMMAND_LINE: usize = 234;
+        const VIEW_PRIVATE_UPLOADS_LINE: usize = 235;
+        const ENTER_GENERIC_MESSAGE_LINE: usize = 236;
+        const EDIT_MESSAGE_HEADERS_LINE: usize = 237;
+        const PROTECT_UNPROTECT_MESSAGES_LINE: usize = 238;
+        const OVERWRITE_UPLOADS_LINE: usize = 239;
+        const SET_PACK_OUT_DATE_ON_MESSAGES_LINE: usize = 252;
+        const SEE_ALL_RETURN_RECEIPT_MESSAGES_LINE: usize = 253;
+
+        let mut ret = Self {
+            version: lines[0].clone(),
+            sysop: lines[1].clone(),
+            password: lines[2].clone(),
+            use_real_name: lines[3] != "0",
+            use_local_graphics: lines[4] != "0",
+            node_number: 0,
+
+            sysop_security: SysopSecurity {
+                sysop: lines[SYSOP_LEVEL_LINE].parse().unwrap(),
+                read_all_comments: lines[READ_ALL_COMMENTS_LINE].parse().unwrap(),
+                read_all_mail: lines[READ_ALL_MAIL_LINE].parse().unwrap(),
+                copy_move_messages: lines[COPY_MOVE_MESSAGES_LINE].parse().unwrap(),
+                enter_at_vars_in_messages: lines[ENTER_AT_VARS_IN_MESSAGES_LINE].parse().unwrap(),
+                edit_any_message: lines[EDIT_ANY_MESSAGE_LINE].parse().unwrap(),
+                not_update_msg_read_status: lines[NOT_UPDATE_MSG_READ_STATUS_LINE].parse().unwrap(),
+                use_broadcast_command: lines[USE_BROADCAST_COMMAND_LINE].parse().unwrap(),
+                view_private_uploads: lines[VIEW_PRIVATE_UPLOADS_LINE].parse().unwrap(),
+                enter_generic_message: lines[ENTER_GENERIC_MESSAGE_LINE].parse().unwrap(),
+                edit_message_headers: lines[EDIT_MESSAGE_HEADERS_LINE].parse().unwrap(),
+                protect_unprotect_messages: lines[PROTECT_UNPROTECT_MESSAGES_LINE].parse().unwrap(),
+                overwrite_uploads: lines[OVERWRITE_UPLOADS_LINE].parse().unwrap(),
+                set_pack_out_date_on_messages: lines[SET_PACK_OUT_DATE_ON_MESSAGES_LINE]
+                    .parse()
+                    .unwrap(),
+                see_all_return_receipt_messages: lines[SEE_ALL_RETURN_RECEIPT_MESSAGES_LINE]
+                    .parse()
+                    .unwrap(),
+            },
+            path: PcbPaths {
+                help_loc: convert_path(c_drive, &lines[23]),
+                sec_loc: convert_path(c_drive, &lines[24]),
+                chat_loc: convert_path(c_drive, &lines[25]),
+                text_loc: convert_path(c_drive, &lines[26]),
+                index_loc: convert_path(c_drive, &lines[27]),
+                tmp_loc: convert_path(c_drive, &lines[178]),
+                usr_file: convert_path(c_drive, &lines[28]),
+                inf_file: convert_path(c_drive, &lines[179]),
+                clr_file: convert_path(c_drive, &lines[29]),
+                conference_file: convert_path(c_drive, &lines[30]),
+                pwd_file: convert_path(c_drive, &lines[31]),
+                fsec_file: convert_path(c_drive, &lines[32]),
+                upsec_file: convert_path(c_drive, &lines[33]),
+                tcan_file: convert_path(c_drive, &lines[34]),
+                welcome_file: convert_path(c_drive, &lines[35]),
+                newuser_file: convert_path(c_drive, &lines[36]),
+                closed_file: convert_path(c_drive, &lines[37]),
+                warning_file: convert_path(c_drive, &lines[38]),
+                expired_file: convert_path(c_drive, &lines[39]),
+                usernet_file: convert_path(c_drive, &lines[40]),
+                conf_menu: convert_path(c_drive, &lines[41]),
+                newreg_file: convert_path(c_drive, &lines[42]),
+                answer_file: convert_path(c_drive, &lines[43]),
+                protecol_data_file: convert_path(c_drive, &lines[44]),
+                download_file: convert_path(c_drive, &lines[45]),
+                logoff_script: convert_path(c_drive, &lines[46]),
+                logoff_answer: convert_path(c_drive, &lines[47]),
+                pcml_dat_file: convert_path(c_drive, &lines[48]),
+                group_chat: convert_path(c_drive, &lines[49]),
+                color_file: convert_path(c_drive, &lines[153]),
+            },
+        };
+        Ok(ret)
+    }
+
+    pub fn load_users(&self) -> Res<Vec<UserRecord>> {
+        UserRecord::read_users(Path::new(&self.path.usr_file))
     }
 }
-*/
+
+fn convert_path(c_drive: &str, path: &str) -> String {
+    let mut path = path;
+    let mut res = if path.starts_with("C:") {
+        path = &path[2..];
+        c_drive.to_string()
+    } else {
+        String::new()
+    };
+
+    for c in path.chars() {
+        if c == '\\' {
+            res.push('/');
+        } else {
+            res.push(c);
+        }
+    }
+    res
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct UserRecord {
     pub name: String,
@@ -224,4 +420,22 @@ pub struct IcyBoardData {
     pub users: Vec<UserRecord>,
     pub nodes: Vec<Node>,
     pub pcb_data: PcbDataType,
+}
+
+impl IcyBoardData {
+    pub fn load_data(&mut self) -> Res<()> {
+        let pcb_text = Path::new(&self.pcb_data.path.text_loc).join("PCBTEXT");
+
+        let pcb_text = fs::read(pcb_text)?;
+
+        for chunk in pcb_text.chunks(0x50) {
+            let mut str = String::new();
+            for b in chunk[1..].iter() {
+                str.push(*b as char);
+            }
+            println!("{}", str);
+        }
+
+        Ok(())
+    }
 }

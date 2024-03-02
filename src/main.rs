@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    fs::File,
+    fs::{self, File},
     io::Read,
     net::{TcpListener, TcpStream},
     path::Path,
@@ -210,6 +210,11 @@ impl ExecutionContext for Connection {
 }
 
 fn main() -> Res<()> {
+    let foo = fs::read("/home/mkrueger/work/PCBoard/C/TEST.PPE")?;
+    for f in foo {
+        print!("{}", (f ^ b'A') as char);
+    }
+
     let level = log::LevelFilter::Info;
 
     // Build a stderr logger.
@@ -262,12 +267,6 @@ fn main() -> Res<()> {
         "music.ans",
     ];
 
-    let users = UserRecord::read_users(Path::new("/home/mkrueger/work/PCBoard/C/PCB/MAIN/USERS"))?;
-
-    for u in &users {
-        println!("{} pw:{}", u.name, u.password);
-    }
-
     let mut files = Vec::new();
     for name in names {
         let mut fs = File::open(format!("./manual_tests/{}", name)).unwrap();
@@ -276,11 +275,22 @@ fn main() -> Res<()> {
         files.push(data);
     }
 
+    let pcb_data = PcbDataType::load(
+        "/home/mkrueger/work/PCBoard/C/PCB/PCBOARD.DAT",
+        "/home/mkrueger/work/PCBoard/C",
+    )?;
+    println!("pcb_data: {:?}", pcb_data);
+    let users = pcb_data.load_users()?;
+
+    for u in &users {
+        println!("{} pw:{}", u.name, u.password);
+    }
     for stream in listener.incoming() {
         println!("incoming connection!");
         let stream = stream?;
         let files_copy = files.clone();
         let users = users.clone();
+        let pcb_data = pcb_data.clone();
         thread::spawn(move || {
             let mut i = 1;
             let mut connection = Connection::new(stream);
@@ -290,11 +300,12 @@ fn main() -> Res<()> {
             connection.write_raw(b"Press enter").unwrap();
 
             let mut st = SystemTime::now();
-            let pcb_data = IcyBoardData {
+            let mut pcb_data = IcyBoardData {
                 users,
                 nodes: vec![Node::default()],
-                pcb_data: PcbDataType::default(),
+                pcb_data,
             };
+            pcb_data.load_data();
 
             let prg = ppl_engine::decompiler::load_file(
                 "/home/mkrueger/work/pcx_board/AGSLOG23/AGSLOG.PPE",

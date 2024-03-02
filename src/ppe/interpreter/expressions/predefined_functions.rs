@@ -534,7 +534,7 @@ pub fn readline(
 }
 
 pub fn sysopsec(interpreter: &Interpreter) -> VariableValue {
-    VariableValue::Integer(interpreter.pcb_data.pcb_data.sysop_sec)
+    VariableValue::Integer(interpreter.pcb_data.pcb_data.sysop_security.sysop)
 }
 pub fn onlocal(interpreter: &Interpreter) -> VariableValue {
     // TODO: OnLocal should return true if the user is local, false otherwise
