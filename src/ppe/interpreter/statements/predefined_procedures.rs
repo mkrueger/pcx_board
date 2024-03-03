@@ -1,7 +1,7 @@
 use std::{fs, thread, time::Duration};
 
 use super::super::errors::IcyError;
-use crate::{evaluate_exp, get_int, get_string, Interpreter, Res};
+use crate::{evaluate_exp, get_int, get_string, pcb_text, Interpreter, Res};
 use ppl_engine::ast::*;
 
 pub fn cls(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
@@ -11,11 +11,37 @@ pub fn cls(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
 pub fn clreol(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     interpreter.ctx.print("\x1B[K")
 }
-pub fn more(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn more(interpreter: &mut Interpreter) -> Res<()> {
+    interpreter
+        .ctx
+        .print(&interpreter.icb_data.pcb_text[pcb_text::MOREPROMPT])?;
+    loop {
+        if let Some(ch) = interpreter.ctx.get_char()? {
+            let ch = ch.to_uppercase().to_string();
+
+            if ch == interpreter.icb_data.yes_char.to_string()
+                || ch == interpreter.icb_data.no_char.to_string()
+            {
+                break;
+            }
+        }
+    }
+    Ok(())
 }
-pub fn wait(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn wait(interpreter: &mut Interpreter) -> Res<()> {
+    interpreter
+        .ctx
+        .print(&interpreter.icb_data.pcb_text[pcb_text::PRESSENTER])?;
+    loop {
+        if let Some(ch) = interpreter.ctx.get_char()? {
+            if ch == '\n' || ch == '\r' {
+                break;
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn color(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
@@ -123,10 +149,12 @@ pub fn fputln(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
 }
 
 pub fn resetdisp(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+    // TODO?: unused
+    Ok(())
 }
 pub fn startdisp(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+    // TODO?: unused
+    Ok(())
 }
 pub fn fputpad(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
@@ -136,7 +164,7 @@ pub fn hangup(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 }
 
 pub fn getuser(interpreter: &mut Interpreter) -> Res<()> {
-    let user = interpreter.pcb_data.users[interpreter.cur_user].clone();
+    let user = interpreter.icb_data.users[interpreter.cur_user].clone();
     interpreter.set_user_variables(&user);
     interpreter.current_user = Some(user);
     Ok(())
@@ -144,7 +172,7 @@ pub fn getuser(interpreter: &mut Interpreter) -> Res<()> {
 
 pub fn putuser(interpreter: &mut Interpreter) -> Res<()> {
     if let Some(user) = interpreter.current_user.take() {
-        interpreter.pcb_data.users[interpreter.cur_user] = user;
+        interpreter.icb_data.users[interpreter.cur_user] = user;
     }
     Ok(())
 }
@@ -152,9 +180,15 @@ pub fn putuser(interpreter: &mut Interpreter) -> Res<()> {
 pub fn defcolor(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn delete(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn delete(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let file = &evaluate_exp(interpreter, &params[0])?.to_string();
+    if let Err(err) = interpreter.io.delete(file) {
+        log::error!("Error deleting file: {}", err);
+    }
+    Ok(())
 }
+
 pub fn deluser(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
@@ -221,11 +255,17 @@ pub fn inc(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn dec(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn newline(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn newline(interpreter: &mut Interpreter) -> Res<()> {
+    interpreter.ctx.write_raw(&[b'\n'])
 }
-pub fn newlines(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+
+pub fn newlines(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let count = get_int(&evaluate_exp(interpreter, &params[0])?)?;
+    for _ in 0..count {
+        newline(interpreter)?;
+    }
+    Ok(())
 }
 
 pub fn tokenize(interpreter: &mut Interpreter, str: String) -> Res<()> {
@@ -329,7 +369,7 @@ pub fn rdunet(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     let value = evaluate_exp(interpreter, &params[0])?;
 
     if let VariableValue::Integer(value) = value {
-        if let Some(node) = interpreter.pcb_data.nodes.get(value as usize) {
+        if let Some(node) = interpreter.icb_data.nodes.get(value as usize) {
             interpreter.pcb_node = Some(node.clone());
         }
     }
@@ -347,11 +387,11 @@ pub fn wrunet(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     // Todo: Broadcast
 
     if !stat.is_empty() {
-        interpreter.pcb_data.nodes[node as usize].status = stat.as_bytes()[0] as char;
+        interpreter.icb_data.nodes[node as usize].status = stat.as_bytes()[0] as char;
     }
-    interpreter.pcb_data.nodes[node as usize].name = name;
-    interpreter.pcb_data.nodes[node as usize].city = city;
-    interpreter.pcb_data.nodes[node as usize].operation = operation;
+    interpreter.icb_data.nodes[node as usize].name = name;
+    interpreter.icb_data.nodes[node as usize].city = city;
+    interpreter.icb_data.nodes[node as usize].operation = operation;
 
     Ok(())
 }
@@ -455,8 +495,13 @@ pub fn mprintln(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()>
     Ok(())
 }
 
-pub fn rename(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+pub fn rename(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let old = &evaluate_exp(interpreter, &params[0])?.to_string();
+    let new = &evaluate_exp(interpreter, &params[1])?.to_string();
+    if let Err(err) = interpreter.io.rename(old, new) {
+        log::error!("Error renaming file: {}", err);
+    }
+    Ok(())
 }
 pub fn frewind(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
@@ -530,8 +575,13 @@ pub fn redim(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 pub fn append(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     panic!("TODO")
 }
-pub fn copy(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
-    panic!("TODO")
+pub fn copy(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
+    let old = &evaluate_exp(interpreter, &params[0])?.to_string();
+    let new = &evaluate_exp(interpreter, &params[1])?.to_string();
+    if let Err(err) = interpreter.io.copy(old, new) {
+        log::error!("Error renaming file: {}", err);
+    }
+    Ok(())
 }
 pub fn kbdflush(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
     // TODO?
@@ -560,7 +610,7 @@ pub fn wrusysdoor(interpreter: &Interpreter, params: &[Expression]) -> Res<()> {
 
 pub fn getaltuser(interpreter: &mut Interpreter, params: &[Expression]) -> Res<()> {
     let user_record = get_int(&evaluate_exp(interpreter, &params[0])?)? as usize;
-    let user = interpreter.pcb_data.users[user_record].clone();
+    let user = interpreter.icb_data.users[user_record].clone();
     interpreter.set_user_variables(&user);
     Ok(())
 }

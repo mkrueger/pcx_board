@@ -27,8 +27,8 @@ pub fn call_predefined_procedure(
     match def.opcode {
         OpCode::CLS => predefined_procedures::cls(interpreter, params),
         OpCode::CLREOL => predefined_procedures::clreol(interpreter, params),
-        OpCode::MORE => predefined_procedures::more(interpreter, params),
-        OpCode::WAIT => predefined_procedures::wait(interpreter, params),
+        OpCode::MORE => predefined_procedures::more(interpreter),
+        OpCode::WAIT => predefined_procedures::wait(interpreter),
         OpCode::COLOR => predefined_procedures::color(interpreter, params),
         OpCode::GOTO => predefined_procedures::goto(interpreter, params),
         OpCode::PRINT => {
@@ -89,7 +89,7 @@ pub fn call_predefined_procedure(
         OpCode::SENDMODEM => predefined_procedures::sendmodem(interpreter, params),
         OpCode::INC => predefined_procedures::inc(interpreter, params),
         OpCode::DEC => predefined_procedures::dec(interpreter, params),
-        OpCode::NEWLINE => predefined_procedures::newline(interpreter, params),
+        OpCode::NEWLINE => predefined_procedures::newline(interpreter),
         OpCode::NEWLINES => predefined_procedures::newlines(interpreter, params),
         OpCode::TOKENIZE => {
             let s = get_string(&evaluate_exp(interpreter, &params[0])?);

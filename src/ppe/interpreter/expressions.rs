@@ -433,8 +433,16 @@ fn call_function(
         FuncOpCode::PEEKW => predefined_functions::peekw(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::MKADDR => predefined_functions::mkaddr(evaluate_exp(interpreter, &params[0])?),
         FuncOpCode::EXIST => predefined_functions::exist(evaluate_exp(interpreter, &params[0])?),
-        FuncOpCode::I2S => predefined_functions::i2s(evaluate_exp(interpreter, &params[0])?),
-        FuncOpCode::S2I => predefined_functions::s2i(evaluate_exp(interpreter, &params[0])?),
+        FuncOpCode::I2S => {
+            let int = get_int(&evaluate_exp(interpreter, &params[0])?)?;
+            let base = get_int(&evaluate_exp(interpreter, &params[1])?)?;
+            predefined_functions::i2s(int, base)
+        }
+        FuncOpCode::S2I => {
+            let s = get_string(&evaluate_exp(interpreter, &params[0])?);
+            let base = get_int(&evaluate_exp(interpreter, &params[1])?)?;
+            predefined_functions::s2i(&s, base)?
+        }
         FuncOpCode::CARRIER => {
             predefined_functions::carrier(evaluate_exp(interpreter, &params[0])?)
         }

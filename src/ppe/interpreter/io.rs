@@ -82,6 +82,10 @@ pub trait PCBoardIO {
 
     fn file_exists(&self, file: &str) -> bool;
 
+    fn delete(&mut self, file: &str) -> std::io::Result<()>;
+    fn rename(&mut self, old: &str, new: &str) -> std::io::Result<()>;
+    fn copy(&mut self, from: &str, to: &str) -> std::io::Result<()>;
+
     /// .
     ///
     /// # Examples
@@ -204,7 +208,30 @@ impl PCBoardIO for DiskIO {
         }
     }
 
+    fn delete(&mut self, file: &str) -> std::io::Result<()> {
+        let file = self.resolve_file_name(file);
+        fs::remove_file(file)
+    }
+
+    fn rename(&mut self, old: &str, new: &str) -> std::io::Result<()> {
+        let old = self.resolve_file_name(old);
+        let new = self.resolve_file_name(new);
+        fs::rename(old, new)
+    }
+    fn copy(&mut self, from: &str, to: &str) -> std::io::Result<()> {
+        let old = self.resolve_file_name(from);
+        let new = self.resolve_file_name(to);
+        fs::copy(old, new)?;
+        Ok(())
+    }
+
     fn fopen(&mut self, channel: usize, file: &str, mode: i32, _sm: i32) {
+        println!(
+            "fopen file: {} -- {} on channel {channel}",
+            file,
+            self.resolve_file_name(file)
+        );
+
         let file = match mode {
             O_RD => File::open(self.resolve_file_name(file)),
             O_WR => File::create(self.resolve_file_name(file)),
@@ -216,6 +243,7 @@ impl PCBoardIO for DiskIO {
         };
         match file {
             Ok(handle) => {
+                println!("ok!");
                 self.channels[channel] = FileChannel {
                     file: Some(Box::new(handle)),
                     reader: None,
@@ -223,7 +251,8 @@ impl PCBoardIO for DiskIO {
                     err: false,
                 };
             }
-            _ => {
+            Err(err) => {
+                log::error!("error opening file: {}", err);
                 self.channels[channel] = FileChannel {
                     file: None,
                     reader: None,
@@ -285,6 +314,7 @@ impl PCBoardIO for DiskIO {
     }
 
     fn fclose(&mut self, channel: usize) {
+        println!("closing channel {}", channel);
         match &mut self.channels[channel].file {
             Some(_) => {
                 self.channels[channel] = FileChannel {
@@ -407,6 +437,26 @@ impl PCBoardIO for MemoryIO {
             filepos: 0,
             err: false,
         };
+    }
+
+    fn delete(&mut self, file: &str) -> std::io::Result<()> {
+        let f = file.to_string();
+        self.files.remove(&f);
+        Ok(())
+    }
+
+    fn rename(&mut self, old: &str, new: &str) -> std::io::Result<()> {
+        if let Some(removed) = self.files.remove(&old.to_string()) {
+            self.files.insert(new.to_string(), removed);
+        }
+        Ok(())
+    }
+
+    fn copy(&mut self, from: &str, to: &str) -> std::io::Result<()> {
+        if let Some(removed) = self.files.get(&from.to_string()) {
+            self.files.insert(to.to_string(), removed.clone());
+        }
+        Ok(())
     }
 
     fn ferr(&self, channel: usize) -> bool {

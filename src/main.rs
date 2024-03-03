@@ -1,9 +1,8 @@
 use std::{
     collections::VecDeque,
-    fs::{self, File},
+    fs::File,
     io::Read,
     net::{TcpListener, TcpStream},
-    path::Path,
     thread,
     time::{Duration, SystemTime},
 };
@@ -27,8 +26,9 @@ pub use raw::*;
 mod pcb_parser;
 pub use pcb_parser::*;
 
-use crate::data::{IcyBoardData, Node, PcbDataType, UserRecord};
+use crate::data::{IcyBoardData, Node, PcbDataType};
 pub mod data;
+pub mod pcb_text;
 
 pub struct Connection {
     com: RawCom,
@@ -157,13 +157,16 @@ impl ExecutionContext for Connection {
                 }
             }
         }
+
         self.com.write(&v)?;
         Ok(())
     }
+
     fn set_color(&mut self, color: u8) {
         let mut v = Vec::new();
-        let bg_color = COLOR_OFFSETS[color as usize & 0b0111] + 40;
-        let fg_color = COLOR_OFFSETS[(color >> 4) as usize & 0b0111] + 30;
+        v.extend(b"\x1B[0;");
+        let fg_color = COLOR_OFFSETS[color as usize & 0b0111] + 30;
+        let bg_color = COLOR_OFFSETS[(color >> 4) as usize & 0b0111] + 40;
 
         if color & 0b1000_0000 != 0 {
             v.extend(b"1;");
@@ -210,11 +213,6 @@ impl ExecutionContext for Connection {
 }
 
 fn main() -> Res<()> {
-    let foo = fs::read("/home/mkrueger/work/PCBoard/C/TEST.PPE")?;
-    for f in foo {
-        print!("{}", (f ^ b'A') as char);
-    }
-
     let level = log::LevelFilter::Info;
 
     // Build a stderr logger.
@@ -304,11 +302,14 @@ fn main() -> Res<()> {
                 users,
                 nodes: vec![Node::default()],
                 pcb_data,
+                pcb_text: Vec::new(),
+                yes_char: 'Y',
+                no_char: 'N',
             };
             pcb_data.load_data();
 
             let prg = ppl_engine::decompiler::load_file(
-                "/home/mkrueger/work/pcx_board/AGSLOG23/AGSLOG.PPE",
+                "/home/mkrueger/work/pcx_board/AGSBF10/AGSBF.PPE",
             );
 
             let mut io = DiskIO::new("/home/mkrueger/work/pcx_board");

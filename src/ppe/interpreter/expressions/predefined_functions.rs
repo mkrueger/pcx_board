@@ -7,6 +7,7 @@ use super::get_int;
 use crate::{get_string, Interpreter, Res};
 use easy_reader::EasyReader;
 use ppl_engine::ast::{convert_to, VariableType, VariableValue};
+use radix_fmt::radix;
 use rand::Rng; // 0.8.5
 use substring::Substring;
 
@@ -212,6 +213,10 @@ pub fn replace(str: VariableValue, old: VariableValue, new: VariableValue) -> Va
     let VariableValue::String(new) = new else {
         return VariableValue::String(String::new());
     };
+    if old.is_empty() {
+        return VariableValue::String(str);
+    }
+
     let mut res = String::new();
     let old = old.chars().next().unwrap();
     let new = new.chars().next().unwrap();
@@ -368,7 +373,7 @@ pub fn time() -> VariableValue {
 
 pub fn u_name(interpreter: &Interpreter) -> VariableValue {
     VariableValue::String(
-        interpreter.pcb_data.users[interpreter.cur_user]
+        interpreter.icb_data.users[interpreter.cur_user]
             .name
             .clone(),
     )
@@ -455,6 +460,34 @@ pub fn yeschar(_x: VariableValue) -> VariableValue {
 
 pub fn inkey(interpreter: &mut Interpreter) -> Res<VariableValue> {
     if let Some(ch) = interpreter.ctx.get_char()? {
+        if ch as u8 == 127 {
+            return Ok(VariableValue::String("DEL".to_string()));
+        }
+        if ch == '\x1B' {
+            if let Some(ch) = interpreter.ctx.get_char()? {
+                if ch == '[' {
+                    if let Some(ch) = interpreter.ctx.get_char()? {
+                        match ch {
+                            'A' => return Ok(VariableValue::String("UP".to_string())),
+                            'B' => return Ok(VariableValue::String("DOWN".to_string())),
+                            'C' => return Ok(VariableValue::String("RIGHT".to_string())),
+                            'D' => return Ok(VariableValue::String("LEFT".to_string())),
+
+                            'H' => return Ok(VariableValue::String("HOME".to_string())),
+                            'K' => return Ok(VariableValue::String("END".to_string())),
+
+                            'V' => return Ok(VariableValue::String("PGUP".to_string())),
+                            'U' => return Ok(VariableValue::String("PGDN".to_string())),
+
+                            '@' => return Ok(VariableValue::String("INS".to_string())),
+
+                            _ => return Ok(VariableValue::String(ch.to_string())),
+                        }
+                    }
+                }
+            }
+            return Ok(VariableValue::String("\x1B".to_string()));
+        }
         Ok(VariableValue::String(ch.to_string()))
     } else {
         Ok(VariableValue::String(String::new()))
@@ -508,7 +541,7 @@ pub fn valtime(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
 pub fn pcbnode(interpreter: &Interpreter) -> VariableValue {
-    VariableValue::Integer(interpreter.pcb_data.pcb_data.node_number as i32)
+    VariableValue::Integer(interpreter.icb_data.pcb_data.node_number as i32)
 }
 
 pub fn readline(
@@ -534,7 +567,7 @@ pub fn readline(
 }
 
 pub fn sysopsec(interpreter: &Interpreter) -> VariableValue {
-    VariableValue::Integer(interpreter.pcb_data.pcb_data.sysop_security.sysop)
+    VariableValue::Integer(interpreter.icb_data.pcb_data.sysop_security.sysop)
 }
 pub fn onlocal(interpreter: &Interpreter) -> VariableValue {
     // TODO: OnLocal should return true if the user is local, false otherwise
@@ -666,11 +699,27 @@ pub fn exist(x: VariableValue) -> VariableValue {
         VariableValue::Boolean(false)
     }
 }
-pub fn i2s(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+
+/// Convert an integer to a string in a specified number base.
+/// # Arguments
+///  * `int` - Any integer to convert to string format.
+///  * `base` - The base to use for the conversion. 2 <= base <= 36
+/// # Returns
+///  A string representation of `int` in the specified base.
+pub fn i2s(int: i32, base: i32) -> VariableValue {
+    let s = radix(int, base as u8).to_string();
+    VariableValue::String(s)
 }
-pub fn s2i(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+
+/// Convert a string in a specified number base to an integer.
+/// # Arguments
+///  * `src` - A string value to convert to an integer.
+///  * `base` - The base to use for the conversion. 2 <= base <= 36
+/// # Returns
+///  An integer representation of `s` in the specified base.
+pub fn s2i(src: &str, base: i32) -> Res<VariableValue> {
+    let i = i32::from_str_radix(src, base as u32)?;
+    Ok(VariableValue::Integer(i))
 }
 pub fn carrier(_x: VariableValue) -> VariableValue {
     panic!("TODO")
@@ -792,7 +841,7 @@ pub fn minkey(interpreter: &mut Interpreter) -> Res<VariableValue> {
     inkey(interpreter)
 }
 pub fn maxnode(interpreter: &mut Interpreter) -> VariableValue {
-    VariableValue::Integer(interpreter.pcb_data.nodes.len() as i32)
+    VariableValue::Integer(interpreter.icb_data.nodes.len() as i32)
 }
 pub fn slpath(_x: VariableValue) -> VariableValue {
     panic!("TODO")
@@ -822,7 +871,7 @@ pub fn tokcount(_x: VariableValue) -> VariableValue {
 pub fn u_recnum(interpreter: &mut Interpreter, user_name: VariableValue) -> Res<VariableValue> {
     let user_name = get_string(&user_name);
     let record_num = if let Some(idx) = interpreter
-        .pcb_data
+        .icb_data
         .users
         .iter()
         .position(|x| x.name == user_name)

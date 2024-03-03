@@ -145,7 +145,7 @@ impl PcbDataType {
         const SET_PACK_OUT_DATE_ON_MESSAGES_LINE: usize = 252;
         const SEE_ALL_RETURN_RECEIPT_MESSAGES_LINE: usize = 253;
 
-        let mut ret = Self {
+        let ret = Self {
             version: lines[0].clone(),
             sysop: lines[1].clone(),
             password: lines[2].clone(),
@@ -420,6 +420,11 @@ pub struct IcyBoardData {
     pub users: Vec<UserRecord>,
     pub nodes: Vec<Node>,
     pub pcb_data: PcbDataType,
+
+    pub pcb_text: Vec<String>,
+
+    pub yes_char: char,
+    pub no_char: char,
 }
 
 impl IcyBoardData {
@@ -428,13 +433,16 @@ impl IcyBoardData {
 
         let pcb_text = fs::read(pcb_text)?;
 
+        let mut res = Vec::new();
         for chunk in pcb_text.chunks(0x50) {
             let mut str = String::new();
             for b in chunk[1..].iter() {
                 str.push(*b as char);
             }
-            println!("{}", str);
+            res.push(str.trim_end().to_string());
         }
+
+        self.pcb_text = res;
 
         Ok(())
     }

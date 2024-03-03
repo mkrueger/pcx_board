@@ -62,7 +62,7 @@ pub struct Interpreter<'a> {
     io: &'a mut dyn PCBoardIO,
     pub is_running: bool,
 
-    pub pcb_data: IcyBoardData,
+    pub icb_data: IcyBoardData,
     pub cur_user: usize,
     pub current_user: Option<UserRecord>,
     pub pcb_node: Option<Node>,
@@ -422,14 +422,13 @@ pub fn run(
         io,
         is_running: true,
         cur_tokens: Vec::new(),
-        pcb_data: pcb_data.clone(),
+        icb_data: pcb_data.clone(),
         cur_user: 0,
         current_user: None,
         pcb_node: None,
         //  stack_frames: vec![]
     };
-
-    //nterpreter.lookup.insert(&prg.main_block, 0);
+    interpreter.set_user_variables(&UserRecord::default());
 
     while interpreter.is_running
         && interpreter.cur_frame.last().unwrap().cur_ptr < prg.main_block.statements.len()
