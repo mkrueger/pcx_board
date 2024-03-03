@@ -161,47 +161,55 @@ pub fn get_first_index(var_info: &VarInfo) -> &Expression {
 fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()> {
     match stmt {
         Statement::Let(variable, expr) => {
-            let value = evaluate_exp(interpreter, expr)?;
+            let value: VariableValue = evaluate_exp(interpreter, expr)?;
             let var_name = variable.get_name().clone();
             let var_type = interpreter.prg.get_var_type(&var_name);
-            let var_info = interpreter.prg.get_var_info(&var_name).unwrap();
 
-            if var_info.is_array() {
-                let dim1 = &evaluate_exp(interpreter, get_first_index(variable))?;
-                let val = match interpreter
-                    .cur_frame
-                    .last_mut()
-                    .unwrap()
-                    .values
-                    .get_mut(&var_name)
-                {
-                    Some(val) => val,
-                    None => {
-                        let arr = create_array(interpreter, var_type, var_info)?;
-                        interpreter
-                            .cur_frame
-                            .last_mut()
-                            .unwrap()
-                            .values
-                            .insert(var_name.clone(), arr);
-                        interpreter
-                            .cur_frame
-                            .last_mut()
-                            .unwrap()
-                            .values
-                            .get_mut(&var_name)
-                            .unwrap()
-                    }
-                };
+            if let Some(var_info) = interpreter.prg.get_var_info(&var_name) {
+                if var_info.is_array() {
+                    let dim1 = &evaluate_exp(interpreter, get_first_index(variable))?;
+                    let val = match interpreter
+                        .cur_frame
+                        .last_mut()
+                        .unwrap()
+                        .values
+                        .get_mut(&var_name)
+                    {
+                        Some(val) => val,
+                        None => {
+                            let arr = create_array(interpreter, var_type, var_info)?;
+                            interpreter
+                                .cur_frame
+                                .last_mut()
+                                .unwrap()
+                                .values
+                                .insert(var_name.clone(), arr);
+                            interpreter
+                                .cur_frame
+                                .last_mut()
+                                .unwrap()
+                                .values
+                                .get_mut(&var_name)
+                                .unwrap()
+                        }
+                    };
 
-                set_array_value(val, var_info, value, get_int(dim1)? as usize - 1);
+                    set_array_value(val, var_info, value, get_int(dim1)? as usize - 1);
+                } else {
+                    interpreter
+                        .cur_frame
+                        .last_mut()
+                        .unwrap()
+                        .values
+                        .insert(var_name, convert_to(var_type, &value));
+                }
             } else {
                 interpreter
                     .cur_frame
                     .last_mut()
                     .unwrap()
                     .values
-                    .insert(var_name, convert_to(var_type, &value));
+                    .insert(var_name, value);
             }
         }
         Statement::Goto(label) => {
@@ -254,6 +262,11 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
                     for i in 0..parameters.len() {
                         if let Declaration::Variable(var_type, infos) = &params[i] {
                             let value = evaluate_exp(interpreter, &parameters[i])?;
+                            println!(
+                                "Insert {} to :{}",
+                                infos[0].get_name(),
+                                convert_to(*var_type, &value)
+                            );
                             prg_frame
                                 .values
                                 .insert(infos[0].get_name().clone(), convert_to(*var_type, &value));
@@ -261,7 +274,7 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
                             panic!("invalid parameter declaration {:?}", params[i]);
                         }
                     }
-
+                    println!("push frame!");
                     interpreter.cur_frame.push(prg_frame);
 
                     while interpreter.cur_frame.last().unwrap().cur_ptr < f.block.statements.len() {
@@ -271,6 +284,7 @@ fn execute_statement(interpreter: &mut Interpreter, stmt: &Statement) -> Res<()>
                         interpreter.cur_frame.last_mut().unwrap().cur_ptr += 1;
                     }
                     interpreter.cur_frame.pop();
+                    println!("pop frame!");
                     found = true;
                     break;
                 }

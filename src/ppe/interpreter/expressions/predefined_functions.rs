@@ -864,8 +864,8 @@ pub fn callnum(_x: VariableValue) -> VariableValue {
 pub fn mgetbyte(_x: VariableValue) -> VariableValue {
     panic!("TODO")
 }
-pub fn tokcount(_x: VariableValue) -> VariableValue {
-    panic!("TODO")
+pub fn tokcount(interpreter: &mut Interpreter) -> VariableValue {
+    VariableValue::Integer(interpreter.cur_tokens.len() as i32)
 }
 
 pub fn u_recnum(interpreter: &mut Interpreter, user_name: VariableValue) -> Res<VariableValue> {

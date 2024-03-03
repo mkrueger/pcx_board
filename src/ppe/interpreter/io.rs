@@ -243,7 +243,6 @@ impl PCBoardIO for DiskIO {
         };
         match file {
             Ok(handle) => {
-                println!("ok!");
                 self.channels[channel] = FileChannel {
                     file: Some(Box::new(handle)),
                     reader: None,
@@ -252,7 +251,6 @@ impl PCBoardIO for DiskIO {
                 };
             }
             Err(err) => {
-                log::error!("error opening file: {}", err);
                 self.channels[channel] = FileChannel {
                     file: None,
                     reader: None,
@@ -314,7 +312,6 @@ impl PCBoardIO for DiskIO {
     }
 
     fn fclose(&mut self, channel: usize) {
-        println!("closing channel {}", channel);
         match &mut self.channels[channel].file {
             Some(_) => {
                 self.channels[channel] = FileChannel {

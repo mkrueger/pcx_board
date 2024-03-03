@@ -308,9 +308,8 @@ fn main() -> Res<()> {
             };
             pcb_data.load_data();
 
-            let prg = ppl_engine::decompiler::load_file(
-                "/home/mkrueger/work/pcx_board/AGSBF10/AGSBF.PPE",
-            );
+            let prg =
+                ppl_engine::decompiler::load_file("/home/mkrueger/work/pcx_board/lbmenu/MENU.PPE");
 
             let mut io = DiskIO::new("/home/mkrueger/work/pcx_board");
             match run(&prg, &mut connection, &mut io, &pcb_data) {

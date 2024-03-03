@@ -26,6 +26,7 @@ pub fn evaluate_exp(interpreter: &mut Interpreter, expr: &Expression) -> Res<Var
     match expr {
         Expression::Identifier(str) => {
             for frame in interpreter.cur_frame.last().unwrap().values.iter() {
+                println!("{:?}", frame.0);
                 if frame.0 == str {
                     return Ok(frame.1.clone());
                 }
@@ -38,6 +39,7 @@ pub fn evaluate_exp(interpreter: &mut Interpreter, expr: &Expression) -> Res<Var
                     }
                 }
             }
+            println!("{}", std::backtrace::Backtrace::force_capture());
             Err(Box::new(IcyError::VariableNotFound(str.clone())))
         }
         Expression::Const(constant) => match constant {
@@ -509,9 +511,7 @@ fn call_function(
         FuncOpCode::MGETBYTE => {
             predefined_functions::mgetbyte(evaluate_exp(interpreter, &params[0])?)
         }
-        FuncOpCode::TOKCOUNT => {
-            predefined_functions::tokcount(evaluate_exp(interpreter, &params[0])?)
-        }
+        FuncOpCode::TOKCOUNT => predefined_functions::tokcount(interpreter),
         FuncOpCode::U_RECNUM => {
             let user_name = evaluate_exp(interpreter, &params[0])?;
             predefined_functions::u_recnum(interpreter, user_name)?
